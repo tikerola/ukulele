@@ -1,0 +1,714 @@
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --primary: #58a6ff;
+  --primary-hover: #79b8ff;
+  --danger: #f85149;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --green: #3fb950;
+  --font: system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+}
+
+/* ─── Loading ─────────────────────────────────────────────── */
+
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-hint { color: var(--muted); font-size: 14px; }
+
+/* ─── Header ──────────────────────────────────────────────── */
+
+.app-header {
+  text-align: center;
+  padding: 48px 24px 32px;
+}
+
+.app-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--primary);
+}
+
+.tagline { color: var(--muted); margin-top: 8px; font-size: 15px; }
+
+.app-header-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.app-header-compact h1 { font-size: 20px; }
+
+/* ─── Input Screen ────────────────────────────────────────── */
+
+.input-screen {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.input-form {
+  padding: 0 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 14px; font-weight: 500; color: var(--text); }
+.field-hint { font-size: 12px; color: var(--muted); }
+
+.field-row { display: flex; gap: 16px; }
+.field-small { flex: 1; }
+
+input, textarea, select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: var(--font);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--primary);
+}
+
+textarea { resize: vertical; }
+
+/* ─── Buttons ─────────────────────────────────────────────── */
+
+.btn-primary {
+  background: var(--primary);
+  color: #0d1117;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+.btn-small {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--primary);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-small:hover { border-color: var(--primary); }
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.btn-delete:hover { color: var(--danger); }
+
+/* ─── Error Banner ────────────────────────────────────────── */
+
+.error-banner {
+  max-width: 520px;
+  margin: 0 auto 24px;
+  padding: 10px 16px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ─── Player Screen ───────────────────────────────────────── */
+
+.player-screen { display: flex; flex-direction: column; height: 100vh; }
+
+.player-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.player-left {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.player-right {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── YouTube Player ──────────────────────────────────────── */
+
+.yt-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+}
+
+.yt-wrapper iframe,
+.yt-wrapper #yt-player-container {
+  width: 100%;
+  height: 100%;
+}
+
+.yt-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* ─── Chord Overlay ───────────────────────────────────────── */
+
+.chord-overlay {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  min-height: 140px;
+  overflow: hidden;
+}
+
+.chord-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
+.chord-current-name {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.chord-upcoming {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chord-upcoming-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chord-upcoming-list {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.chord-upcoming-item {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.upcoming-chord-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.chord-upcoming-empty { color: var(--muted); font-size: 14px; }
+
+/* ─── Beat Indicator ──────────────────────────────────────── */
+
+.beat-indicator {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
+
+.beat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffd700;
+  flex-shrink: 0;
+  will-change: transform, opacity;
+}
+
+.beat-dot-down {
+  width: 14px;
+  height: 14px;
+}
+
+/* Beat pulse animation */
+
+@keyframes beat-pulse {
+  0%   { border-color: #ffd700; box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.45); }
+  65%  { border-color: rgba(255, 215, 0, 0.25); box-shadow: 0 0 0 10px rgba(255, 215, 0, 0.08); }
+  100% { border-color: transparent; box-shadow: none; }
+}
+
+.beat-pulse { animation: beat-pulse 0.45s ease-out; }
+
+/* ─── Chord Editor ────────────────────────────────────────── */
+
+.chord-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chord-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chord-count { font-weight: 400; color: var(--muted); }
+
+.chord-editor-table-wrapper {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.chord-editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.chord-editor-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  z-index: 1;
+}
+
+.chord-editor-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+.chord-editor-table tr.row-active td {
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.chord-editor-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.col-idx { color: var(--muted); font-size: 11px; width: 28px; text-align: center; }
+
+.input-chord {
+  width: 56px;
+  padding: 3px 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.input-time {
+  width: 72px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Recording Screen ────────────────────────────────────── */
+
+.recording-screen { display: flex; flex-direction: column; height: 100vh; }
+
+.recording-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.recording-top {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.recording-video-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.recording-grid-col {
+  width: 280px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tap-strip {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 14px 16px;
+}
+
+.tap-instructions {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+kbd {
+  background: var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text);
+}
+
+.chord-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chord-tap-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px 8px;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, transform 0.07s;
+  min-width: 80px;
+  color: inherit;
+}
+
+.chord-tap-btn:hover {
+  border-color: var(--primary);
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.chord-tap-btn:active {
+  transform: scale(0.93);
+  background: rgba(88, 166, 255, 0.15);
+  border-color: var(--primary);
+}
+
+.chord-tap-key {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chord-tap-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* ─── Tap Log ─────────────────────────────────────────────── */
+
+.tap-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.quantize-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.quantize-label {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quantize-options {
+  display: flex;
+  gap: 4px;
+}
+
+.quantize-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.quantize-btn:hover { border-color: var(--primary); color: var(--text); }
+
+.quantize-btn-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #0d1117;
+  font-weight: 600;
+}
+
+.quantize-grid-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.tap-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.tap-empty {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tap-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+.tap-entry:hover { background: rgba(255,255,255,0.03); }
+
+.tap-idx {
+  color: var(--muted);
+  font-size: 11px;
+  min-width: 20px;
+  text-align: right;
+}
+
+.tap-chord {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 40px;
+}
+
+.tap-time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tap-raw {
+  font-size: 11px;
+  color: var(--border);
+  margin-left: 2px;
+}
+
+.tap-footer {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tap-footer .btn-primary { width: 100%; }
+
+/* ─── Beat Grid ───────────────────────────────────────── */
+
+.beat-grid-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.beat-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+}
+
+.beat-row:hover { background: rgba(255, 255, 255, 0.02); }
+
+.bar-number {
+  font-size: 10px;
+  color: var(--muted);
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.beat-slot {
+  width: 52px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.beat-slot:hover { border-color: var(--primary); }
+
+.beat-slot-filled {
+  background: rgba(88, 166, 255, 0.1);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: var(--primary);
+}
+
+.beat-slot-filled:hover {
+  background: rgba(248, 81, 73, 0.08);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Current playback position — gold */
+.beat-slot-current {
+  border-color: #ffd700 !important;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.25);
+  background: rgba(255, 215, 0, 0.1) !important;
+  color: #ffd700 !important;
+}
+
+/* Manual selection when paused — blue */
+.beat-slot-target:not(.beat-slot-current) {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25);
+  background: rgba(88, 166, 255, 0.12) !important;
+  color: var(--primary) !important;
+}
