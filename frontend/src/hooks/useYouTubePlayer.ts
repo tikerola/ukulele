@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 interface YTPlayer {
   getCurrentTime(): number
+  seekTo(seconds: number, allowSeekAhead: boolean): void
   destroy(): void
 }
 
@@ -77,15 +78,35 @@ export function useYouTubePlayer(videoId: string) {
 
   useEffect(() => {
     if (!isReady) return
+
+    // YouTube's getCurrentTime() updates ~4x/sec, not every frame.
+    // We interpolate between updates using wall-clock time so the pulse
+    // fires at the actual beat rather than up to ~250ms late.
+    const lastYTTime = { value: 0, wall: 0 }
+
     function tick() {
-      setCurrentTime(playerRef.current?.getCurrentTime() ?? 0)
+      const ytTime = playerRef.current?.getCurrentTime() ?? 0
+      const now = performance.now()
+
+      if (ytTime !== lastYTTime.value) {
+        lastYTTime.value = ytTime
+        lastYTTime.wall = now
+      }
+
+      // Extrapolate, but stop after 350ms without a new YT update (paused/seeking)
+      const elapsed = (now - lastYTTime.wall) / 1000
+      const predicted = elapsed < 0.35 ? lastYTTime.value + elapsed : lastYTTime.value
+
+      setCurrentTime(predicted)
       rafRef.current = requestAnimationFrame(tick)
     }
+
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
   }, [isReady])
 
   const getTime = () => playerRef.current?.getCurrentTime() ?? 0
+  const seekTo = (seconds: number) => playerRef.current?.seekTo(seconds, true)
 
-  return { containerRef, currentTime, isReady, isPlaying, getTime }
+  return { containerRef, currentTime, isReady, isPlaying, getTime, seekTo }
 }

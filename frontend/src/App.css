@@ -71,6 +71,28 @@ body {
 
 .app-header-compact h1 { font-size: 20px; }
 
+.mode-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.mode-badge-creator {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.mode-badge-playalong {
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--primary);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
 /* ─── Input Screen ────────────────────────────────────────── */
 
 .input-screen {
@@ -139,6 +161,7 @@ textarea { resize: vertical; }
 }
 
 .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+.btn-ghost-active { color: var(--primary) !important; border-color: var(--primary) !important; }
 
 .btn-small {
   background: none;
@@ -231,18 +254,45 @@ textarea { resize: vertical; }
   pointer-events: none;
 }
 
-/* ─── Chord Overlay ───────────────────────────────────────── */
+/* ─── Chord Carousel ──────────────────────────────────────── */
 
-.chord-overlay {
+.chord-carousel {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 16px 20px;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 12px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  min-height: 140px;
+  min-height: 148px;
   overflow: hidden;
+}
+
+.carousel-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 4px 6px;
+}
+
+.carousel-dist-1 { opacity: 0.55; }
+.carousel-dist-2 { opacity: 0.28; }
+.carousel-dist-3 { opacity: 0.12; }
+
+.carousel-chord-name {
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.carousel-chord-empty {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .chord-current {
@@ -256,50 +306,17 @@ textarea { resize: vertical; }
   padding: 6px 8px;
 }
 
+.chord-current-active {
+  border-color: rgba(88, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(88, 166, 255, 0.12), 0 0 24px rgba(88, 166, 255, 0.1);
+}
+
 .chord-current-name {
   font-size: 28px;
   font-weight: 700;
   color: var(--text);
   line-height: 1;
 }
-
-.chord-upcoming {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-.chord-upcoming-label {
-  font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.chord-upcoming-list {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.chord-upcoming-item {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.upcoming-chord-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.3px;
-}
-
-.chord-upcoming-empty { color: var(--muted); font-size: 14px; }
 
 /* ─── Beat Indicator ──────────────────────────────────────── */
 
@@ -325,15 +342,23 @@ textarea { resize: vertical; }
   height: 14px;
 }
 
+.beat-dot-muted {
+  background: #4a5070;
+}
+
 /* Beat pulse animation */
 
 @keyframes beat-pulse {
-  0%   { border-color: #ffd700; box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.45); }
-  65%  { border-color: rgba(255, 215, 0, 0.25); box-shadow: 0 0 0 10px rgba(255, 215, 0, 0.08); }
-  100% { border-color: transparent; box-shadow: none; }
+  0%   { border-color: #ffd700; box-shadow: 0 0 0 7px rgba(255, 215, 0, 0.6), 0 0 28px rgba(255, 215, 0, 0.28); }
+  100% { border-color: rgba(255, 200, 0, 0.55); box-shadow: 0 0 0 3px rgba(255, 200, 0, 0.2), 0 0 16px rgba(255, 200, 0, 0.1); }
 }
 
 .beat-pulse { animation: beat-pulse 0.45s ease-out; }
+
+.beat-sustained {
+  border-color: rgba(255, 200, 0, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 200, 0, 0.2), 0 0 16px rgba(255, 200, 0, 0.1);
+}
 
 /* ─── Chord Editor ────────────────────────────────────────── */
 
@@ -419,14 +444,16 @@ textarea { resize: vertical; }
 
 .recording-body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex: 1;
   min-height: 0;
 }
 
-.recording-top {
+.recording-main-col {
   display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -439,7 +466,7 @@ textarea { resize: vertical; }
 }
 
 .recording-grid-col {
-  width: 280px;
+  width: 440px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   display: flex;
@@ -457,11 +484,87 @@ textarea { resize: vertical; }
 .tap-instructions {
   font-size: 13px;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 10px;
 }
+
+/* ─── Strum Pattern ──────────────────────────────────────────── */
+
+.strum-pattern {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.strum-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 36px;
+}
+
+.strum-beats {
+  display: flex;
+  gap: 4px;
+}
+
+.strum-beat-btn {
+  width: 28px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+
+.strum-beat-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.strum-beat-btn.strum-beat-active {
+  background: rgba(255, 215, 0, 0.13);
+  border-color: #ffd700;
+  color: #ffd700;
+}
+
+.strum-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 2px;
+}
+
+.strum-sound-btn {
+  margin-left: auto;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.1s, border-color 0.1s;
+  line-height: 1.6;
+}
+
+.strum-sound-btn:hover { opacity: 0.8; }
+.strum-sound-btn.strum-sound-on { opacity: 1; border-color: var(--primary); }
 
 kbd {
   background: var(--border);
@@ -476,6 +579,55 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.chord-mode-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 0 2px;
+  flex-shrink: 0;
+}
+
+.chord-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.chord-mode-btn:hover { border-color: var(--text); color: var(--text); }
+
+.chord-mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.chord-mode-rec {
+  border-color: #e05252;
+  color: #e05252;
+  background: rgba(224, 82, 82, 0.08);
+}
+
+.chord-mode-rec .chord-mode-dot {
+  background: #e05252;
+}
+
+.chord-mode-test {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 .chord-tap-btn {
@@ -642,6 +794,66 @@ kbd {
 
 /* ─── Beat Grid ───────────────────────────────────────── */
 
+.beat-offset-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.beat-offset-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.beat-offset-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.beat-offset-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.beat-offset-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  min-width: 48px;
+  text-align: center;
+}
+
+.beat-offset-reset {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.beat-offset-reset:hover { color: var(--text); }
+.beat-offset-reset:disabled { opacity: 0; pointer-events: none; }
+
 .beat-grid-scroll {
   flex: 1;
   overflow-y: auto;
@@ -666,21 +878,84 @@ kbd {
   flex-shrink: 0;
 }
 
+.bar-number-seek {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 2px;
+  transition: color 0.1s, background 0.1s;
+}
+
+.bar-number-seek:hover {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.row-offset-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.row-offset-btn {
+  width: 16px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.row-offset-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.row-offset-val {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: center;
+  white-space: nowrap;
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: default;
+  line-height: 20px;
+}
+
+.row-offset-explicit {
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.row-offset-explicit:hover {
+  background: rgba(99, 102, 241, 0.12);
+  text-decoration: line-through;
+}
+
 .beat-slot {
-  width: 52px;
-  height: 34px;
+  flex: 1;
+  height: 36px;
   border: 1px solid var(--border);
   border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
   transition: border-color 0.1s, background 0.1s, color 0.1s;
-  flex-shrink: 0;
   user-select: none;
+  min-width: 0;
 }
 
 .beat-slot:hover { border-color: var(--primary); }
@@ -691,11 +966,13 @@ kbd {
   color: var(--primary);
 }
 
+/* Filled but not selected — brighter blue on hover = "click to select" */
 .beat-slot-filled:hover {
-  background: rgba(248, 81, 73, 0.08);
-  border-color: var(--danger);
-  color: var(--danger);
+  background: rgba(88, 166, 255, 0.22);
+  border-color: rgba(88, 166, 255, 0.7);
+  color: var(--primary);
 }
+
 
 /* Current playback position — gold */
 .beat-slot-current {
@@ -711,4 +988,72 @@ kbd {
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25);
   background: rgba(88, 166, 255, 0.12) !important;
   color: var(--primary) !important;
+}
+
+/* Drag source — faded with dashed border */
+.beat-slot-drag-src {
+  opacity: 0.35;
+  border-style: dashed !important;
+}
+
+/* Drop target — green highlight */
+.beat-slot-drag-over {
+  border-color: var(--green) !important;
+  background: rgba(63, 185, 80, 0.18) !important;
+  color: var(--green) !important;
+  box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.3);
+}
+
+/* ─── Fill Bar Pattern ─────────────────────────────────── */
+
+.fill-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.fill-bar-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 36px;
+}
+
+.fill-bar-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--primary);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 0.12s, opacity 0.12s;
+}
+
+.fill-bar-btn:hover:not(:disabled) { border-color: var(--primary); }
+.fill-bar-btn:disabled { opacity: 0.3; cursor: default; }
+
+.fill-bar-chord {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  margin-left: 4px;
+}
+
+.grid-fill-section {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+}
+
+.grid-fill-section .fill-bar-row {
+  margin-bottom: 0;
 }

@@ -1,9 +1,9 @@
-import { useId, useState, useEffect } from 'react'
-import type { ChordDictionary, ChordEntry, AppState } from './types'
+import { useId, useState, useEffect, useCallback } from 'react'
+import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot } from './types'
 import { ChordOverlay } from './components/ChordOverlay'
-import { ChordEditor } from './components/ChordEditor'
 import { RecordingView } from './components/RecordingView'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
+import { useChordAudio } from './hooks/useChordAudio'
 
 const API = '/api'
 
@@ -16,9 +16,11 @@ function parseChords(input: string): string[] {
   return input.split(/\s+/).filter(s => s.length > 0)
 }
 
+// ─── Home screen ────────────────────────────────────────────────
+
 function InputForm({ onStart }: { onStart: (url: string, chords: string[]) => void }) {
-  const [url, setUrl] = useState('')
-  const [chordText, setChordText] = useState('C Em G F')
+  const [url, setUrl] = useState('https://www.youtube.com/watch?v=ONdsLfVZMso')
+  const [chordText, setChordText] = useState('Am G Dm')
   const urlId = useId()
   const chordsId = useId()
 
@@ -33,7 +35,7 @@ function InputForm({ onStart }: { onStart: (url: string, chords: string[]) => vo
     <div className="input-screen">
       <header className="app-header">
         <h1>UkeSync</h1>
-        <p className="tagline">Tap-to-sync ukulele playalong from YouTube</p>
+        <p className="tagline">Ukulele playalong from YouTube — create once, play forever</p>
       </header>
       <form className="input-form" onSubmit={handleSubmit}>
         <div className="field">
@@ -53,46 +55,81 @@ function InputForm({ onStart }: { onStart: (url: string, chords: string[]) => vo
           <textarea
             id={chordsId}
             rows={3}
-            placeholder="C Em G F"
+            placeholder="C Em G F Am"
             value={chordText}
             onChange={e => setChordText(e.target.value)}
           />
-          <span className="field-hint">List every unique chord — you'll tap them in time with the video</span>
+          <span className="field-hint">
+            List every unique chord — you'll assign them to beats in Creator mode
+          </span>
         </div>
 
         <button className="btn-primary" type="submit">
-          Load Video
+          Open in Creator →
         </button>
       </form>
     </div>
   )
 }
 
-function PlayerView({
+// ─── Playalong mode ─────────────────────────────────────────────
+
+function PlayalongView({
   videoId,
   timeline,
   chordDict,
   bpm,
-  onReRecord,
+  meter,
+  strumPattern,
+  beatPhaseTime,
+  onToCreator,
   onReset,
 }: {
   videoId: string
   timeline: ChordEntry[]
   chordDict: ChordDictionary
   bpm: number
-  onReRecord: () => void
+  meter: number
+  strumPattern: boolean[]
+  beatPhaseTime: number
+  onToCreator: () => void
   onReset: () => void
 }) {
-  const [editableTimeline, setEditableTimeline] = useState<ChordEntry[]>(timeline)
+  const [showPreview, setShowPreview] = useState(true)
+  const [soundOn, setSoundOn] = useState(false)
   const { containerRef, currentTime, isReady } = useYouTubePlayer(videoId)
+  const { playChord } = useChordAudio()
+
+  const handlePulse = useCallback((chord: string) => {
+    if (!soundOn) return
+    const data = chordDict[chord]
+    if (data) playChord(data.frets)
+  }, [soundOn, chordDict, playChord])
 
   return (
     <div className="player-screen">
       <header className="app-header app-header-compact">
-        <h1>UkeSync</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1>UkeSync</h1>
+          <span className="mode-badge mode-badge-playalong">Playalong</span>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn-ghost" onClick={onReRecord}>Re-record</button>
-          <button className="btn-ghost" onClick={onReset}>← New Song</button>
+          <button
+            className={`btn-ghost${showPreview ? ' btn-ghost-active' : ''}`}
+            onClick={() => setShowPreview(v => !v)}
+            title="Show next chord diagram alongside current"
+          >
+            Preview
+          </button>
+          <button
+            className={`btn-ghost${soundOn ? ' btn-ghost-active' : ''}`}
+            onClick={() => setSoundOn(v => !v)}
+            title={soundOn ? 'Mute chord sound' : 'Play chord on each beat'}
+          >
+            {soundOn ? '🔊' : '🔇'}
+          </button>
+          <button className="btn-ghost" onClick={onToCreator}>← Creator</button>
+          <button className="btn-ghost" onClick={onReset}>New song</button>
         </div>
       </header>
 
@@ -103,17 +140,15 @@ function PlayerView({
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
           <ChordOverlay
-            timeline={editableTimeline}
+            timeline={timeline}
             currentTime={currentTime}
             chordDict={chordDict}
             bpm={bpm}
-          />
-        </div>
-        <div className="player-right">
-          <ChordEditor
-            timeline={editableTimeline}
-            currentTime={currentTime}
-            onChange={setEditableTimeline}
+            beatsPerBar={meter}
+            strumPattern={strumPattern}
+            showPreview={showPreview}
+            onPulse={handlePulse}
+            beatPhaseTime={beatPhaseTime}
           />
         </div>
       </div>
@@ -121,14 +156,19 @@ function PlayerView({
   )
 }
 
+// ─── Root ────────────────────────────────────────────────────────
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>('input')
   const [error, setError] = useState<string | null>(null)
   const [videoId, setVideoId] = useState<string | null>(null)
   const [chords, setChords] = useState<string[]>([])
   const [bpm, setBpm] = useState<number>(0)
+  const [meter, setMeter] = useState<number>(4)
+  const [strumPattern, setStrumPattern] = useState<boolean[]>([true, true, true, true])
   const [timeline, setTimeline] = useState<ChordEntry[]>([])
   const [chordDict, setChordDict] = useState<ChordDictionary>({})
+  const [creatorSnapshot, setCreatorSnapshot] = useState<CreatorSnapshot | null>(null)
 
   useEffect(() => {
     fetch(`${API}/chords`)
@@ -143,13 +183,16 @@ export default function App() {
     setError(null)
     setVideoId(vid)
     setChords(songChords)
-    setAppState('recording')
+    setAppState('creator')
   }
 
-  function handleRecordingDone(taps: ChordEntry[], detectedBpm: number | null) {
+  function handleCreatorDone(taps: ChordEntry[], detectedBpm: number | null, detectedMeter: number, detectedStrumPattern: boolean[], snapshot: CreatorSnapshot) {
     setTimeline(taps)
     setBpm(detectedBpm ?? 0)
-    setAppState('editing')
+    setMeter(detectedMeter)
+    setStrumPattern(detectedStrumPattern)
+    setCreatorSnapshot(snapshot)
+    setAppState('playalong')
   }
 
   function handleReset() {
@@ -157,29 +200,40 @@ export default function App() {
     setVideoId(null)
     setChords([])
     setTimeline([])
+    setCreatorSnapshot(null)
     setError(null)
   }
 
-  if (appState === 'recording' && videoId) {
+  if (appState === 'creator' && videoId) {
     return (
       <RecordingView
         videoId={videoId}
         chords={chords}
         chordDict={chordDict}
-        onDone={handleRecordingDone}
+        initialSnapshot={creatorSnapshot ?? undefined}
+        onDone={handleCreatorDone}
         onBack={handleReset}
       />
     )
   }
 
-  if (appState === 'editing' && videoId) {
+  if (appState === 'playalong' && videoId) {
+    const snap = creatorSnapshot
+    const beat0Offset = snap
+      ? (snap.syncAnchors.find(a => a.barStart === 0)?.offset ?? snap.audioOffset)
+      : 0
+    const beatPhaseTime = (snap?.beats[0] ?? 0) + beat0Offset
+
     return (
-      <PlayerView
+      <PlayalongView
         videoId={videoId}
         timeline={timeline}
         chordDict={chordDict}
         bpm={bpm}
-        onReRecord={() => setAppState('recording')}
+        meter={meter}
+        strumPattern={strumPattern}
+        beatPhaseTime={beatPhaseTime}
+        onToCreator={() => setAppState('creator')}
         onReset={handleReset}
       />
     )

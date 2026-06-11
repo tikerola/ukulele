@@ -11,4 +11,19 @@ export interface ChordDictionary {
   [chord: string]: ChordData
 }
 
-export type AppState = 'input' | 'recording' | 'editing'
+export type AppState = 'input' | 'creator' | 'playalong'
+
+export interface SyncAnchor {
+  barStart: number
+  offset: number
+}
+
+export interface CreatorSnapshot {
+  beats: number[]
+  bpm: number
+  meter: number
+  slots: Record<number, string>
+  strumPattern: boolean[]
+  audioOffset: number
+  syncAnchors: SyncAnchor[]
+}

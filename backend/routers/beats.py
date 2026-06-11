@@ -9,18 +9,31 @@ router = APIRouter()
 
 class BeatsRequest(BaseModel):
     youtube_url: str
+    chords: List[str] = []
+
+
+class ChordChange(BaseModel):
+    beat: int
+    chord: str
 
 
 class BeatsResponse(BaseModel):
     bpm: float
     beats: List[float]
+    meter: int
+    chord_changes: List[ChordChange] = []
 
 
 @router.post("/beats", response_model=BeatsResponse)
 async def get_beats(request: BeatsRequest):
     try:
         audio_path = download_audio(request.youtube_url)
-        data = analyze_beats(audio_path)
-        return BeatsResponse(bpm=round(data["bpm"], 1), beats=data["beats"])
+        data = analyze_beats(audio_path, chord_names=request.chords or None)
+        return BeatsResponse(
+            bpm=round(data["bpm"], 1),
+            beats=data["beats"],
+            meter=data["meter"],
+            chord_changes=[ChordChange(**c) for c in data["chord_changes"]],
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
