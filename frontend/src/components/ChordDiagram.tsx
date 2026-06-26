@@ -65,11 +65,8 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
         />
       ))}
 
-      {/* Open / muted indicators */}
+      {/* Muted string indicators */}
       {frets.map((fret, i) => {
-        if (fret === 0) {
-          return <circle key={i} cx={strX[i]} cy={topY} r={4} fill="none" stroke="#58a6ff" strokeWidth={1.5} />
-        }
         if (fret === -1) {
           return (
             <text key={i} x={strX[i]} y={topY + 4} textAnchor="middle" fill="#8b949e" fontSize={10}>×</text>

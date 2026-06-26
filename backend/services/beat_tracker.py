@@ -44,6 +44,50 @@ def detect_meter(y, sr, beat_frames, onset_env=None) -> tuple[int, int]:
     return best_meter, best_offset
 
 
+def detect_section_boundaries(y, sr, beat_frames, hop: int = 512, meter: int = 4) -> list[int]:
+    """
+    Return 0-based bar indices where a new structural section likely starts.
+    Uses beat-synced MFCC novelty: peaks in frame-to-frame distance signal
+    transitions between sections.
+    """
+    if len(beat_frames) < meter * 4:
+        return []
+
+    try:
+        from scipy.ndimage import gaussian_filter1d
+        from scipy.signal import find_peaks
+    except ImportError:
+        return []
+
+    # Beat-synced MFCC
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=12, hop_length=hop)
+    beat_mfcc = librosa.util.sync(mfcc, beat_frames, aggregate=np.median)
+    beat_mfcc = librosa.util.normalize(beat_mfcc, norm=2, axis=0)
+
+    # Novelty: Euclidean distance between adjacent beat frames
+    diff = np.sqrt(np.sum(np.diff(beat_mfcc, axis=1) ** 2, axis=0))
+    if len(diff) == 0:
+        return []
+
+    # Smooth over ~1 bar to reduce beat-level noise
+    smoothed = gaussian_filter1d(diff.astype(float), sigma=float(meter))
+
+    # Peaks must be at least 4 bars apart and above the 65th percentile
+    min_dist = max(1, 4 * meter)
+    threshold = float(np.percentile(smoothed, 65))
+    peaks, _ = find_peaks(smoothed, distance=min_dist, height=threshold)
+
+    # Round each peak beat to the nearest bar boundary
+    total_bars = len(beat_frames) // meter
+    bar_indices = set()
+    for p in peaks:
+        bar = int(round(float(p) / meter))
+        if 0 < bar < total_bars:
+            bar_indices.add(bar)
+
+    return sorted(bar_indices)
+
+
 def analyze_beats(audio_path: str, chord_names: Optional[list] = None) -> dict:
     y, sr = librosa.load(audio_path, sr=None, mono=True)
 
@@ -83,6 +127,7 @@ def analyze_beats(audio_path: str, chord_names: Optional[list] = None) -> dict:
         "beats": beat_times,
         "meter": meter,
         "chord_changes": [],
+        "section_boundaries": detect_section_boundaries(y, sr, beat_frames, hop=hop, meter=meter),
     }
 
     if chord_names:

@@ -76,6 +76,7 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
 
 function PlayalongView({
   videoId,
+  chords,
   timeline,
   chordDict,
   bpm,
@@ -86,6 +87,7 @@ function PlayalongView({
   onReset,
 }: {
   videoId: string
+  chords: string[]
   timeline: ChordEntry[]
   chordDict: ChordDictionary
   bpm: number
@@ -95,7 +97,6 @@ function PlayalongView({
   onToCreator: () => void
   onReset: () => void
 }) {
-  const [showPreview, setShowPreview] = useState(true)
   const [soundOn, setSoundOn] = useState(false)
   const { containerRef, currentTime, isReady } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
@@ -115,13 +116,6 @@ function PlayalongView({
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            className={`btn-ghost${showPreview ? ' btn-ghost-active' : ''}`}
-            onClick={() => setShowPreview(v => !v)}
-            title="Show next chord diagram alongside current"
-          >
-            Preview
-          </button>
-          <button
             className={`btn-ghost${soundOn ? ' btn-ghost-active' : ''}`}
             onClick={() => setSoundOn(v => !v)}
             title={soundOn ? 'Mute chord sound' : 'Play chord on each beat'}
@@ -140,13 +134,13 @@ function PlayalongView({
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
           <ChordOverlay
+            chords={chords}
             timeline={timeline}
             currentTime={currentTime}
             chordDict={chordDict}
             bpm={bpm}
             beatsPerBar={meter}
             strumPattern={strumPattern}
-            showPreview={showPreview}
             onPulse={handlePulse}
             beatPhaseTime={beatPhaseTime}
           />
@@ -246,6 +240,7 @@ export default function App() {
     return (
       <PlayalongView
         videoId={videoId}
+        chords={chords}
         timeline={timeline}
         chordDict={chordDict}
         bpm={bpm}

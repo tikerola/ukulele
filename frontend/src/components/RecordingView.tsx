@@ -1,8 +1,17 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
-import type { ChordEntry, ChordDictionary, CreatorSnapshot, SyncAnchor } from '../types'
+import type { ChordEntry, ChordDictionary, CreatorSnapshot, SyncAnchor, SectionType, Section } from '../types'
+
+const SECTION_BORDER_COLORS: Record<string, string> = {
+  intro: 'rgba(63, 185, 80, 0.45)',
+  verse: 'rgba(88, 166, 255, 0.45)',
+  chorus: 'rgba(255, 215, 0, 0.45)',
+  'pre-chorus': 'rgba(163, 113, 247, 0.45)',
+  bridge: 'rgba(240, 136, 62, 0.45)',
+  instrumental: 'rgba(125, 133, 144, 0.45)',
+}
 
 function effectiveOffset(beatIdx: number, meter: number, anchors: SyncAnchor[], fallback: number): number {
   const barIdx = Math.floor(beatIdx / meter)
@@ -42,6 +51,9 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [dragOver, setDragOver] = useState<number | null>(null)
   const [audioOffset, setAudioOffset] = useState(initialSnapshot?.audioOffset ?? 0)
   const [syncAnchors, setSyncAnchors] = useState<SyncAnchor[]>(initialSnapshot?.syncAnchors ?? [])
+  const [sections, setSections] = useState<Section[]>(initialSnapshot?.sections ?? [])
+  const [suggestedBoundaries, setSuggestedBoundaries] = useState<number[]>(initialSnapshot?.sectionBoundaries ?? [])
+  const [sectionDraft, setSectionDraft] = useState<{ startBar: number | null; endBar: number | null; type: SectionType }>({ startBar: null, endBar: null, type: 'verse' })
   const [recordMode, setRecordMode] = useState(true)
 
   const currentTimeRef = useRef(currentTime)
@@ -76,6 +88,9 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           for (const { beat, chord } of data.chord_changes) initial[beat] = chord
           setSlots(initial)
           setAutoFilled(true)
+        }
+        if (data.section_boundaries?.length > 0) {
+          setSuggestedBoundaries(data.section_boundaries)
         }
         setStatus('ready')
         if (data.beats.length > 0) setSelectedBeat(0)
@@ -192,6 +207,41 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const clearBarAnchor = useCallback((barIdx: number) => {
     setSyncAnchors(prev => prev.filter(a => a.barStart !== barIdx))
   }, [])
+
+  const applySection = useCallback((startBar: number, endBar: number, type: SectionType) => {
+    const template = sections
+      .filter(s => s.type === type)
+      .sort((a, b) => a.startBar - b.startBar)[0]
+
+    if (template) {
+      const templateLen = template.endBar - template.startBar + 1
+      const m = meterRef.current
+      const totalBeats = beatsRef.current.length
+      setSlots(prev => {
+        const n = { ...prev }
+        for (let i = 0; i <= endBar - startBar; i++) {
+          const srcBar = template.startBar + (i % templateLen)
+          const dstBar = startBar + i
+          for (let p = 0; p < m; p++) {
+            const srcSlot = srcBar * m + p
+            const dstSlot = dstBar * m + p
+            if (dstSlot < totalBeats) {
+              const srcChord = (prev as Record<number, string | undefined>)[srcSlot]
+              if (srcChord !== undefined) n[dstSlot] = srcChord
+              else delete n[dstSlot]
+            }
+          }
+        }
+        return n
+      })
+    }
+
+    setSections(prev => {
+      const filtered = prev.filter(s => s.endBar < startBar || s.startBar > endBar)
+      return [...filtered, { type, startBar, endBar }].sort((a, b) => a.startBar - b.startBar)
+    })
+    setSuggestedBoundaries(prev => prev.filter(b => b < startBar || b > endBar))
+  }, [sections])
 
   function buildTimeline(): ChordEntry[] {
     return Object.entries(slots)
@@ -398,80 +448,117 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
               </div>
 
               <div className="beat-grid-scroll">
-                {bars.map((beatIndices, barIdx) => (
-                  <div key={barIdx} className="beat-row">
-                    <span
-                      className="bar-number bar-number-seek"
-                      title={`Seek to bar ${barIdx + 1}`}
-                      onClick={() => {
-                        const firstBeat = barIdx * meter
-                        if (firstBeat < beats.length) {
-                          seekTo(beats[firstBeat] + effectiveOffset(firstBeat, meter, syncAnchors, audioOffset))
-                        }
-                      }}
-                    >{barIdx + 1}</span>
-                    {(() => {
-                      const hasAnchor = syncAnchors.some(a => a.barStart === barIdx)
-                      const effOff = effectiveOffset(barIdx * meter, meter, syncAnchors, audioOffset)
-                      const offStr = `${effOff >= 0 ? '+' : ''}${effOff.toFixed(2)}`
-                      return (
-                        <div className="row-offset-ctrl">
-                          <button className="row-offset-btn" onClick={() => adjustBarOffset(barIdx, -0.05)}>−</button>
-                          <span
-                            className={`row-offset-val${hasAnchor ? ' row-offset-explicit' : ''}`}
-                            onClick={hasAnchor ? () => clearBarAnchor(barIdx) : undefined}
-                            title={hasAnchor ? `${offStr}s — click to clear` : `${offStr}s (inherited)`}
-                          >
-                            {offStr}
-                          </span>
-                          <button className="row-offset-btn" onClick={() => adjustBarOffset(barIdx, +0.05)}>+</button>
+                {bars.map((beatIndices, barIdx) => {
+                  const sectionStart = sections.find(s => s.startBar === barIdx)
+                  const inSection = sections.find(s => s.startBar <= barIdx && barIdx <= s.endBar)
+                  const isSuggestedBoundary = suggestedBoundaries.includes(barIdx) && !sectionStart
+                  return (
+                    <Fragment key={barIdx}>
+                      {isSuggestedBoundary && (
+                        <div className="suggested-boundary-row">
+                          <span className="suggested-boundary-label">detected boundary</span>
+                          <button
+                            className="btn-small"
+                            onClick={() => {
+                              const nextBoundary = suggestedBoundaries.find(b => b > barIdx)
+                              const endBar = nextBoundary !== undefined ? nextBoundary - 1 : bars.length - 1
+                              setSectionDraft(d => ({ ...d, startBar: barIdx, endBar }))
+                            }}
+                          >Label</button>
+                          <button
+                            className="section-chip-del"
+                            onClick={() => setSuggestedBoundaries(prev => prev.filter(b => b !== barIdx))}
+                          >×</button>
                         </div>
-                      )
-                    })()}
-                    {beatIndices.map(beatIdx => {
-                      const isCurrent = beatIdx === currentBeatIdx
-                      const isTarget = !isPlaying && beatIdx === targetBeatIdx
-                      const chord = slots[beatIdx]
-                      let cls = 'beat-slot'
-                      if (isCurrent) cls += ' beat-slot-current'
-                      if (isTarget) cls += ' beat-slot-target'
-                      if (chord) cls += ' beat-slot-filled'
-                      if (dragSrc === beatIdx) cls += ' beat-slot-drag-src'
-                      if (dragOver === beatIdx && dragSrc !== null && dragSrc !== beatIdx) cls += ' beat-slot-drag-over'
-                      return (
-                        <div
-                          key={beatIdx}
-                          ref={isCurrent ? activeSlotRef : undefined}
-                          className={cls}
-                          draggable={!!chord}
-                          onDragStart={chord ? () => setDragSrc(beatIdx) : undefined}
-                          onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
-                          onDragOver={(e) => { e.preventDefault(); setDragOver(beatIdx) }}
-                          onDragLeave={() => setDragOver(d => d === beatIdx ? null : d)}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            const src = dragSrc
-                            if (src !== null && src !== beatIdx) {
-                              const srcChord = slots[src]
-                              if (srcChord) setSlots(prev => { const n = { ...prev }; delete n[src]; n[beatIdx] = srcChord; return n })
-                            }
-                            setDragSrc(null); setDragOver(null)
-                          }}
-                          title={chord ? 'Click to select · Drag to move' : 'Click to select'}
+                      )}
+                      {sectionStart && (
+                        <div className="section-label-row">
+                          <span className={`section-badge section-badge-${sectionStart.type}`}>{sectionStart.type}</span>
+                          <button
+                            className="btn-delete"
+                            title={`Remove "${sectionStart.type}" label`}
+                            onClick={() => setSections(prev => prev.filter(s => s.startBar !== barIdx))}
+                          >×</button>
+                        </div>
+                      )}
+                      <div
+                        className="beat-row"
+                        style={inSection ? { borderLeft: `3px solid ${SECTION_BORDER_COLORS[inSection.type]}` } : undefined}
+                      >
+                        <span
+                          className="bar-number bar-number-seek"
+                          title={`Seek to bar ${barIdx + 1}`}
                           onClick={() => {
-                            setSelectedBeat(beatIdx)
-                            if (soundOn && chord) {
-                              const data = chordDict[chord]
-                              if (data) playChord(data.frets)
+                            const firstBeat = barIdx * meter
+                            if (firstBeat < beats.length) {
+                              seekTo(beats[firstBeat] + effectiveOffset(firstBeat, meter, syncAnchors, audioOffset))
                             }
                           }}
-                        >
-                          {chord || ''}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))}
+                        >{barIdx + 1}</span>
+                        {(() => {
+                          const hasAnchor = syncAnchors.some(a => a.barStart === barIdx)
+                          const effOff = effectiveOffset(barIdx * meter, meter, syncAnchors, audioOffset)
+                          const offStr = `${effOff >= 0 ? '+' : ''}${effOff.toFixed(2)}`
+                          return (
+                            <div className="row-offset-ctrl">
+                              <button className="row-offset-btn" onClick={() => adjustBarOffset(barIdx, -0.05)}>−</button>
+                              <span
+                                className={`row-offset-val${hasAnchor ? ' row-offset-explicit' : ''}`}
+                                onClick={hasAnchor ? () => clearBarAnchor(barIdx) : undefined}
+                                title={hasAnchor ? `${offStr}s — click to clear` : `${offStr}s (inherited)`}
+                              >
+                                {offStr}
+                              </span>
+                              <button className="row-offset-btn" onClick={() => adjustBarOffset(barIdx, +0.05)}>+</button>
+                            </div>
+                          )
+                        })()}
+                        {beatIndices.map(beatIdx => {
+                          const isCurrent = beatIdx === currentBeatIdx
+                          const isTarget = !isPlaying && beatIdx === targetBeatIdx
+                          const chord = slots[beatIdx]
+                          let cls = 'beat-slot'
+                          if (isCurrent) cls += ' beat-slot-current'
+                          if (isTarget) cls += ' beat-slot-target'
+                          if (chord) cls += ' beat-slot-filled'
+                          if (dragSrc === beatIdx) cls += ' beat-slot-drag-src'
+                          if (dragOver === beatIdx && dragSrc !== null && dragSrc !== beatIdx) cls += ' beat-slot-drag-over'
+                          return (
+                            <div
+                              key={beatIdx}
+                              ref={isCurrent ? activeSlotRef : undefined}
+                              className={cls}
+                              draggable={!!chord}
+                              onDragStart={chord ? () => setDragSrc(beatIdx) : undefined}
+                              onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
+                              onDragOver={(e) => { e.preventDefault(); setDragOver(beatIdx) }}
+                              onDragLeave={() => setDragOver(d => d === beatIdx ? null : d)}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                const src = dragSrc
+                                if (src !== null && src !== beatIdx) {
+                                  const srcChord = slots[src]
+                                  if (srcChord) setSlots(prev => { const n = { ...prev }; delete n[src]; n[beatIdx] = srcChord; return n })
+                                }
+                                setDragSrc(null); setDragOver(null)
+                              }}
+                              title={chord ? 'Click to select · Drag to move' : 'Click to select'}
+                              onClick={() => {
+                                setSelectedBeat(beatIdx)
+                                if (soundOn && chord) {
+                                  const data = chordDict[chord]
+                                  if (data) playChord(data.frets)
+                                }
+                              }}
+                            >
+                              {chord || ''}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </Fragment>
+                  )
+                })}
               </div>
 
               <div className="grid-fill-section">
@@ -490,12 +577,68 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
                     <kbd>R</kbd> All
                   </button>
                 </div>
+                <div className="section-label-row-form">
+                  <span className="section-form-label">Section</span>
+                  <input
+                    type="number"
+                    className="section-bar-input"
+                    min={1}
+                    max={bars.length}
+                    placeholder="Bar"
+                    value={sectionDraft.startBar !== null ? sectionDraft.startBar + 1 : ''}
+                    onChange={e => setSectionDraft(d => ({ ...d, startBar: e.target.value !== '' ? Math.max(0, parseInt(e.target.value) - 1) : null }))}
+                  />
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>–</span>
+                  <input
+                    type="number"
+                    className="section-bar-input"
+                    min={1}
+                    max={bars.length}
+                    placeholder="Bar"
+                    value={sectionDraft.endBar !== null ? sectionDraft.endBar + 1 : ''}
+                    onChange={e => setSectionDraft(d => ({ ...d, endBar: e.target.value !== '' ? Math.max(0, parseInt(e.target.value) - 1) : null }))}
+                  />
+                  <select
+                    className="section-type-select"
+                    value={sectionDraft.type}
+                    onChange={e => setSectionDraft(d => ({ ...d, type: e.target.value as SectionType }))}
+                  >
+                    {(['intro', 'verse', 'chorus', 'pre-chorus', 'bridge', 'instrumental'] as const).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn-small"
+                    disabled={
+                      sectionDraft.startBar === null ||
+                      sectionDraft.endBar === null ||
+                      sectionDraft.endBar < sectionDraft.startBar ||
+                      sectionDraft.startBar >= bars.length
+                    }
+                    onClick={() => {
+                      if (sectionDraft.startBar !== null && sectionDraft.endBar !== null) {
+                        applySection(sectionDraft.startBar, Math.min(sectionDraft.endBar, bars.length - 1), sectionDraft.type)
+                        setSectionDraft(d => ({ ...d, startBar: null, endBar: null }))
+                      }
+                    }}
+                  >Apply</button>
+                  {sections.length > 0 && (
+                    <div className="section-chips">
+                      {sections.map((s, i) => (
+                        <span key={i} className={`section-badge section-badge-${s.type}`}>
+                          {s.type} {s.startBar + 1}–{s.endBar + 1}
+                          <button className="section-chip-del" onClick={() => setSections(prev => prev.filter((_, j) => j !== i))}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="tap-footer">
                 <button
                   className="btn-primary"
-                  onClick={() => onDone(buildTimeline(), bpm, meter, strumPattern, { beats, bpm, meter, slots, strumPattern, audioOffset, syncAnchors })}
+                  onClick={() => onDone(buildTimeline(), bpm, meter, strumPattern, { beats, bpm, meter, slots, strumPattern, audioOffset, syncAnchors, sections, sectionBoundaries: suggestedBoundaries })}
                   disabled={assignedCount === 0}
                 >
                   ▶ Playalong

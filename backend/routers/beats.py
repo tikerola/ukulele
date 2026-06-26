@@ -22,6 +22,7 @@ class BeatsResponse(BaseModel):
     beats: List[float]
     meter: int
     chord_changes: List[ChordChange] = []
+    section_boundaries: List[int] = []
 
 
 @router.post("/beats", response_model=BeatsResponse)
@@ -34,6 +35,7 @@ async def get_beats(request: BeatsRequest):
             beats=data["beats"],
             meter=data["meter"],
             chord_changes=[ChordChange(**c) for c in data["chord_changes"]],
+            section_boundaries=data.get("section_boundaries", []),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
