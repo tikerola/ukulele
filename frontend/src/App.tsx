@@ -18,7 +18,7 @@ function parseChords(input: string): string[] {
 
 // ─── Home screen ────────────────────────────────────────────────
 
-function InputForm({ onStart }: { onStart: (url: string, chords: string[]) => void }) {
+function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: string[]) => void; isLoading?: boolean }) {
   const [url, setUrl] = useState('https://www.youtube.com/watch?v=ONdsLfVZMso')
   const [chordText, setChordText] = useState('Am G Dm')
   const urlId = useId()
@@ -64,8 +64,8 @@ function InputForm({ onStart }: { onStart: (url: string, chords: string[]) => vo
           </span>
         </div>
 
-        <button className="btn-primary" type="submit">
-          Open in Creator →
+        <button className="btn-primary" type="submit" disabled={isLoading}>
+          {isLoading ? 'Loading…' : 'Open in Creator →'}
         </button>
       </form>
     </div>
@@ -161,6 +161,7 @@ function PlayalongView({
 export default function App() {
   const [appState, setAppState] = useState<AppState>('input')
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [videoId, setVideoId] = useState<string | null>(null)
   const [chords, setChords] = useState<string[]>([])
   const [bpm, setBpm] = useState<number>(0)
@@ -177,13 +178,24 @@ export default function App() {
       .catch(() => {})
   }, [])
 
-  function handleStart(url: string, songChords: string[]) {
+  async function handleStart(url: string, songChords: string[]) {
     const vid = extractVideoId(url)
     if (!vid) { setError('Could not extract video ID from URL'); return }
     setError(null)
+    setIsLoading(true)
+    try {
+      const res = await fetch(`${API}/songs/${vid}`)
+      if (res.ok) {
+        const saved = await res.json()
+        if (saved.snapshot) setCreatorSnapshot(saved.snapshot)
+      }
+    } catch {
+      // proceed without saved data
+    }
     setVideoId(vid)
     setChords(songChords)
     setAppState('creator')
+    setIsLoading(false)
   }
 
   function handleCreatorDone(taps: ChordEntry[], detectedBpm: number | null, detectedMeter: number, detectedStrumPattern: boolean[], snapshot: CreatorSnapshot) {
@@ -193,6 +205,13 @@ export default function App() {
     setStrumPattern(detectedStrumPattern)
     setCreatorSnapshot(snapshot)
     setAppState('playalong')
+    if (videoId) {
+      fetch(`${API}/songs/${videoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot, chords }),
+      }).catch(() => {})
+    }
   }
 
   function handleReset() {
@@ -241,7 +260,7 @@ export default function App() {
 
   return (
     <>
-      <InputForm onStart={handleStart} />
+      <InputForm onStart={handleStart} isLoading={isLoading} />
       {error && <div className="error-banner">{error}</div>}
     </>
   )
