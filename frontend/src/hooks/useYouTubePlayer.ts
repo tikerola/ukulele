@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 interface YTPlayer {
   getCurrentTime(): number
+  getDuration(): number
   seekTo(seconds: number, allowSeekAhead: boolean): void
   destroy(): void
 }
@@ -47,6 +48,7 @@ export function useYouTubePlayer(videoId: string) {
   const [isReady, setIsReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const rafRef = useRef<number>(0)
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function useYouTubePlayer(videoId: string) {
       playerRef.current = null
       setIsReady(false)
       setIsPlaying(false)
+      setDuration(0)
     }
   }, [videoId])
 
@@ -98,6 +101,7 @@ export function useYouTubePlayer(videoId: string) {
       const predicted = elapsed < 0.35 ? lastYTTime.value + elapsed : lastYTTime.value
 
       setCurrentTime(predicted)
+      setDuration(playerRef.current?.getDuration() ?? 0)
       rafRef.current = requestAnimationFrame(tick)
     }
 
@@ -108,5 +112,5 @@ export function useYouTubePlayer(videoId: string) {
   const getTime = () => playerRef.current?.getCurrentTime() ?? 0
   const seekTo = (seconds: number) => playerRef.current?.seekTo(seconds, true)
 
-  return { containerRef, currentTime, isReady, isPlaying, getTime, seekTo }
+  return { containerRef, currentTime, duration, isReady, isPlaying, getTime, seekTo }
 }

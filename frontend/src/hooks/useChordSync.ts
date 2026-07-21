@@ -1,9 +1,20 @@
 import { useMemo } from 'react'
 import type { ChordEntry } from '../types'
 
+const BATCH_SIZE = 4
+
 export function useChordSync(timeline: ChordEntry[], currentTime: number) {
   return useMemo(() => {
-    if (timeline.length === 0) return { current: null, past: [], upcoming: [] }
+    if (timeline.length === 0) {
+      return {
+        currentIdx: -1,
+        batch: [] as ChordEntry[],
+        activeIdxInBatch: -1,
+        nextTime: null as number | null,
+        isLastInBatch: false,
+        nextChord: null as string | null,
+      }
+    }
 
     let currentIdx = 0
     for (let i = timeline.length - 1; i >= 0; i--) {
@@ -13,28 +24,22 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
       }
     }
 
-    const current = timeline[currentIdx]
+    // Chords are grouped into fixed batches of 4; the active chord progresses
+    // across a batch's slots and only the batch itself swaps out once playback
+    // moves past the last slot.
+    const batchStart = Math.floor(currentIdx / BATCH_SIZE) * BATCH_SIZE
+    const batch = timeline.slice(batchStart, batchStart + BATCH_SIZE)
+    const activeIdxInBatch = currentIdx - batchStart
+    const nextEntry = currentIdx + 1 < timeline.length ? timeline[currentIdx + 1] : null
+    const isLastInBatch = activeIdxInBatch === batch.length - 1
 
-    // Past: up to 3 distinct chord changes before current (most recent first)
-    const past: ChordEntry[] = []
-    let prev = current.chord
-    for (let i = currentIdx - 1; i >= 0 && past.length < 3; i--) {
-      if (timeline[i].chord !== prev) {
-        past.push(timeline[i])
-        prev = timeline[i].chord
-      }
+    return {
+      currentIdx,
+      batch,
+      activeIdxInBatch,
+      nextTime: nextEntry?.time ?? null,
+      isLastInBatch,
+      nextChord: nextEntry?.chord ?? null,
     }
-
-    // Upcoming: up to 3 distinct chord changes after current
-    const upcoming: ChordEntry[] = []
-    prev = current.chord
-    for (let i = currentIdx + 1; i < timeline.length && upcoming.length < 3; i++) {
-      if (timeline[i].chord !== prev) {
-        upcoming.push(timeline[i])
-        prev = timeline[i].chord
-      }
-    }
-
-    return { current, past, upcoming }
   }, [timeline, currentTime])
 }

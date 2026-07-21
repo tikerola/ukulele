@@ -1,0 +1,38 @@
+- generic [ref=e16]:
+  - banner [ref=e17]:
+    - generic [ref=e18]:
+      - heading "UkeSync" [level=1] [ref=e19]
+      - generic [ref=e20]: Creator
+    - generic [ref=e21]:
+      - button "🔊" [ref=e22] [cursor=pointer]
+      - button "⏪ 5s" [ref=e23] [cursor=pointer]
+      - button "← New song" [ref=e24] [cursor=pointer]
+  - generic [ref=e25]:
+    - generic [ref=e27]:
+      - iframe [ref=e28]:
+        - generic "YouTube Video Player" [ref=f1e3]
+      - generic: Loading player…
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - text: Click a chord to record it at the current position (paused) ·
+        - generic [ref=e31]: "1"
+        - text: –
+        - generic [ref=e32]: "3"
+      - generic [ref=e33]:
+        - button "1 Am" [disabled] [ref=e34]:
+          - generic [ref=e35]: "1"
+          - generic [ref=e36]: Am
+          - img [ref=e37]:
+            - generic [ref=e41]: Am
+        - button "2 G" [disabled] [ref=e42]:
+          - generic [ref=e43]: "2"
+          - generic [ref=e44]: G
+          - img [ref=e45]:
+            - generic [ref=e51]: G
+        - button "3 Dm" [disabled] [ref=e52]:
+          - generic [ref=e53]: "3"
+          - generic [ref=e54]: Dm
+          - img [ref=e55]:
+            - generic [ref=e61]: Dm
+    - generic [ref=e62]: Waiting for video to load…
+    - button "▶ Playalong" [disabled] [ref=e64]

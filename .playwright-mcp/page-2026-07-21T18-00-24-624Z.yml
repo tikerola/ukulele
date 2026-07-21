@@ -1,0 +1,45 @@
+- generic [ref=e203]:
+  - banner [ref=e204]:
+    - generic [ref=e205]:
+      - heading "UkeSync" [level=1] [ref=e206]
+      - generic [ref=e207]: Playalong
+    - generic [ref=e208]:
+      - button "🔇" [ref=e209] [cursor=pointer]
+      - button "← Creator" [ref=e210] [cursor=pointer]
+      - button "New song" [ref=e211] [cursor=pointer]
+  - generic [ref=e213]:
+    - iframe [ref=e215]:
+      - generic [ref=f4e1]:
+        - generic "YouTube Video Player" [ref=f4e3]
+        - generic [ref=f4e5]:
+          - generic:
+            - generic:
+              - button "Play video" [ref=f4e10] [cursor=pointer]
+              - button "Hide player controls" [ref=f4e14] [cursor=pointer]
+              - generic [ref=f4e16]:
+                - generic [ref=f4e21]:
+                  - generic [ref=f4e22]:
+                    - link "Ville Valo & Natalia Avelon Summer Wine original video SD" [ref=f4e23] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - link "Taika Talvi" [ref=f4e24] [cursor=pointer]:
+                      - /url: /channel/UCno1fj4nl5Jrw3LF7SAUd-w
+                  - generic [ref=f4e26]:
+                    - button [ref=f4e27] [cursor=pointer]:
+                      - img "thumbnail-image" [ref=f4e28]
+                    - generic [ref=f4e30]:
+                      - generic: Taika Talvi
+                      - generic: 9.6k subscribers
+                - generic [ref=f4e31]:
+                  - button "Share" [ref=f4e34] [cursor=pointer]
+                  - link "Watch on YouTube" [ref=f4e45] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - generic [ref=f4e46]: Watch on
+    - generic [ref=e217]:
+      - img [ref=e219]:
+        - generic [ref=e223]: Am
+      - generic [ref=e224]:
+        - generic: ▼
+        - img [ref=e225]:
+          - generic [ref=e231]: G
+      - img [ref=e233]:
+        - generic [ref=e239]: Dm

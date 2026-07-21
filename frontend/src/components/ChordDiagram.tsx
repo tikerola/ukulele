@@ -15,7 +15,7 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
   const vW = 90
   const vH = 115
 
-  const strX = [12, 28, 44, 60]
+  const strX = [21, 37, 53, 69]
   const nutY = 26
   const fretH = 18
   const fretY = (f: number) => nutY + fretH * f

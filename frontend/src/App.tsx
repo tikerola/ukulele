@@ -60,7 +60,7 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
             onChange={e => setChordText(e.target.value)}
           />
           <span className="field-hint">
-            List every unique chord — you'll assign them to beats in Creator mode
+            List every unique chord — you'll record them onto the timeline in Creator mode
           </span>
         </div>
 
@@ -76,24 +76,14 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
 
 function PlayalongView({
   videoId,
-  chords,
   timeline,
   chordDict,
-  bpm,
-  meter,
-  strumPattern,
-  beatPhaseTime,
   onToCreator,
   onReset,
 }: {
   videoId: string
-  chords: string[]
   timeline: ChordEntry[]
   chordDict: ChordDictionary
-  bpm: number
-  meter: number
-  strumPattern: boolean[]
-  beatPhaseTime: number
   onToCreator: () => void
   onReset: () => void
 }) {
@@ -134,15 +124,10 @@ function PlayalongView({
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
           <ChordOverlay
-            chords={chords}
             timeline={timeline}
             currentTime={currentTime}
             chordDict={chordDict}
-            bpm={bpm}
-            beatsPerBar={meter}
-            strumPattern={strumPattern}
             onPulse={handlePulse}
-            beatPhaseTime={beatPhaseTime}
           />
         </div>
       </div>
@@ -158,9 +143,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [videoId, setVideoId] = useState<string | null>(null)
   const [chords, setChords] = useState<string[]>([])
-  const [bpm, setBpm] = useState<number>(0)
-  const [meter, setMeter] = useState<number>(4)
-  const [strumPattern, setStrumPattern] = useState<boolean[]>([true, true, true, true])
   const [timeline, setTimeline] = useState<ChordEntry[]>([])
   const [chordDict, setChordDict] = useState<ChordDictionary>({})
   const [creatorSnapshot, setCreatorSnapshot] = useState<CreatorSnapshot | null>(null)
@@ -192,11 +174,8 @@ export default function App() {
     setIsLoading(false)
   }
 
-  function handleCreatorDone(taps: ChordEntry[], detectedBpm: number | null, detectedMeter: number, detectedStrumPattern: boolean[], snapshot: CreatorSnapshot) {
+  function handleCreatorDone(taps: ChordEntry[], snapshot: CreatorSnapshot) {
     setTimeline(taps)
-    setBpm(detectedBpm ?? 0)
-    setMeter(detectedMeter)
-    setStrumPattern(detectedStrumPattern)
     setCreatorSnapshot(snapshot)
     setAppState('playalong')
     if (videoId) {
@@ -231,22 +210,11 @@ export default function App() {
   }
 
   if (appState === 'playalong' && videoId) {
-    const snap = creatorSnapshot
-    const beat0Offset = snap
-      ? (snap.syncAnchors.find(a => a.barStart === 0)?.offset ?? snap.audioOffset)
-      : 0
-    const beatPhaseTime = (snap?.beats[0] ?? 0) + beat0Offset
-
     return (
       <PlayalongView
         videoId={videoId}
-        chords={chords}
         timeline={timeline}
         chordDict={chordDict}
-        bpm={bpm}
-        meter={meter}
-        strumPattern={strumPattern}
-        beatPhaseTime={beatPhaseTime}
         onToCreator={() => setAppState('creator')}
         onReset={handleReset}
       />
