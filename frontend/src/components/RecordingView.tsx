@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { Timeline, formatTime } from './Timeline'
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
+import { useChordSync } from '../hooks/useChordSync'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot } from '../types'
 
 interface Props {
@@ -25,6 +26,19 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   useEffect(() => {
     if (locked) setSelectedIdx(null)
   }, [locked])
+
+  const { currentIdx } = useChordSync(timeline, currentTime)
+  const lastPulseIdxRef = useRef(-1)
+
+  useEffect(() => {
+    if (!isPlaying || !soundOn) return
+    if (currentIdx === -1 || currentIdx === lastPulseIdxRef.current) return
+    lastPulseIdxRef.current = currentIdx
+    const chord = timeline[currentIdx]?.chord
+    const data = chord ? getChordData(chord) : null
+    if (data) playChord(data.frets)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx, isPlaying, soundOn, timeline, playChord])
 
   function getChordData(chord: string) {
     if (chordDict[chord]) return chordDict[chord]
