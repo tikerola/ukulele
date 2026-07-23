@@ -1,0 +1,28 @@
+[     151ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:21548
+[   51684ms] NotFoundError: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.
+    at handleSectionPointerDown (http://localhost:5189/src/components/Timeline.tsx:122:21)
+    at onPointerDown (http://localhost:5189/src/components/Timeline.tsx:373:41)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3697:24)
+    at invokeGuardedCallback (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3734:33)
+    at executeDispatch (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7032:15)
+    at processDispatchQueue (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7049:11)
+[   51685ms] NotFoundError: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.
+    at handleSectionPointerDown (http://localhost:5189/src/components/Timeline.tsx:122:21)
+    at onPointerDown (http://localhost:5189/src/components/Timeline.tsx:373:41)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3697:24)
+    at invokeGuardedCallback (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3734:33)
+    at executeDispatch (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7032:15)
+    at processDispatchQueue (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7049:11)
+[  723002ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5189/src/hooks/useYouTubePlayer.ts:58:41)
+[  729604ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5189/src/hooks/useYouTubePlayer.ts:58:41)
+[  738987ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('http://localhost:5189'). @ https://www.youtube.com/s/player/7a7969c2/www-widgetapi.vflset/www-widgetapi.js:162

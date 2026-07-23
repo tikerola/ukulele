@@ -13,7 +13,7 @@ interface Props {
 const CHORD_SIZE = 1.3
 
 export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Props) {
-  const { currentIdx, batch, activeIdxInBatch, nextTime, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
+  const { currentIdx, batch, activeIdxInBatch, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastIdxRef = useRef(-1)
@@ -40,16 +40,9 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
     onPulseRef.current?.(batch[activeIdxInBatch]?.chord ?? '')
   }, [currentIdx, activeIdxInBatch, batch])
 
-  const secondsToNext = nextTime !== null ? Math.max(0, Math.floor(nextTime - currentTime)) : null
-
   return (
     <div className="chord-row-wrapper">
       <div className="chord-strip-inner">
-        <div className="chord-strip-timer">
-          {secondsToNext !== null && (
-            <>Change in <span className="chord-strip-timer-number">{secondsToNext}</span></>
-          )}
-        </div>
         <div className="chord-row">
           {batch.map((entry, i) => (
             <div

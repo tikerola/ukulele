@@ -1,0 +1,17 @@
+- generic [ref=f21e3]:
+  - banner [ref=f21e4]:
+    - heading "UkeSync" [level=1] [ref=f21e5]
+    - paragraph [ref=f21e6]: Ukulele playalong from YouTube — create once, play forever
+  - generic [ref=f21e7]:
+    - generic [ref=f21e8]:
+      - generic [ref=f21e9]: YouTube URL
+      - textbox "YouTube URL" [ref=f21e10]:
+        - /placeholder: https://www.youtube.com/watch?v=...
+        - text: https://www.youtube.com/watch?v=ONdsLfVZMso
+    - generic [ref=f21e11]:
+      - generic [ref=f21e12]: Chords in this song
+      - textbox "Chords in this song" [ref=f21e13]:
+        - /placeholder: C Em G F Am
+        - text: Am G Dm
+      - generic [ref=f21e14]: List every unique chord — you'll record them onto the timeline in Creator mode
+    - button "Open in Creator →" [ref=f21e15] [cursor=pointer]

@@ -13,6 +13,13 @@ export interface ChordDictionary {
 
 export type AppState = 'input' | 'creator' | 'playalong'
 
+export interface Section {
+  name: string
+  startTime: number
+  endTime: number
+}
+
 export interface CreatorSnapshot {
   timeline: ChordEntry[]
+  sections?: Section[]
 }

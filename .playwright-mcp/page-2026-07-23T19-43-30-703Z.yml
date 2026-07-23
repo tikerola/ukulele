@@ -1,0 +1,47 @@
+- generic [ref=e209]:
+  - banner [ref=e210]:
+    - generic [ref=e211]:
+      - heading "UkeSync" [level=1] [ref=e212]
+      - generic [ref=e213]: Playalong
+    - generic [ref=e214]:
+      - button "🔇" [ref=e215] [cursor=pointer]
+      - button "← Creator" [ref=e216] [cursor=pointer]
+      - button "New song" [ref=e217] [cursor=pointer]
+  - generic [ref=e219]:
+    - iframe [ref=e221]:
+      - generic [ref=f4e1]:
+        - generic "YouTube Video Player" [ref=f4e3]
+        - generic [ref=f4e5]:
+          - generic:
+            - generic:
+              - button "Play video" [ref=f4e10] [cursor=pointer]
+              - button "Hide player controls" [ref=f4e12] [cursor=pointer]
+              - generic [ref=f4e14]:
+                - generic [ref=f4e19]:
+                  - generic [ref=f4e20]:
+                    - link "Ville Valo & Natalia Avelon Summer Wine original video SD" [ref=f4e21] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - link "Taika Talvi" [ref=f4e22] [cursor=pointer]:
+                      - /url: /channel/UCno1fj4nl5Jrw3LF7SAUd-w
+                  - generic [ref=f4e24]:
+                    - button [ref=f4e25] [cursor=pointer]:
+                      - img "thumbnail-image" [ref=f4e26]
+                    - generic [ref=f4e28]:
+                      - generic: Taika Talvi
+                      - generic: 9.6k subscribers
+                - generic [ref=f4e29]:
+                  - button "Share" [ref=f4e32] [cursor=pointer]
+                  - link "Watch on YouTube" [ref=f4e43] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - generic [ref=f4e44]: Watch on
+    - generic [ref=e223]:
+      - generic [ref=e224]: Change in 3
+      - generic [ref=e225]:
+        - img [ref=e227]:
+          - generic [ref=e231]: Am
+        - img [ref=e233]:
+          - generic [ref=e239]: G
+        - img [ref=e241]:
+          - generic [ref=e245]: Am
+        - img [ref=e247]:
+          - generic [ref=e253]: G

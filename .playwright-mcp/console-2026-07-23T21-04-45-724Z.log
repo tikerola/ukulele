@@ -1,0 +1,26 @@
+[    1645ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:21548
+[    1726ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5189/favicon.ico:0
+[    7990ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5189/api/songs/dQw4w9WgXcQ:0
+[   40433ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5189/favicon.ico:0
+[   89446ms] NotFoundError: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.
+    at handleMarkerPointerDown (http://localhost:5189/src/components/Timeline.tsx:176:21)
+    at onPointerDown (http://localhost:5189/src/components/Timeline.tsx:451:39)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3697:24)
+    at invokeGuardedCallback (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3734:33)
+    at executeDispatch (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7032:15)
+    at processDispatchQueue (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7049:11)
+[   89448ms] NotFoundError: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.
+    at handleMarkerPointerDown (http://localhost:5189/src/components/Timeline.tsx:176:21)
+    at onPointerDown (http://localhost:5189/src/components/Timeline.tsx:451:39)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3697:24)
+    at invokeGuardedCallback (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:3734:33)
+    at executeDispatch (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7032:15)
+    at processDispatchQueue (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5189/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:7049:11)

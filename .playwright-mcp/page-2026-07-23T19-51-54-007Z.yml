@@ -1,0 +1,56 @@
+- generic [ref=f8e208]:
+  - banner [ref=f8e209]:
+    - generic [ref=f8e210]:
+      - heading "UkeSync" [level=1] [ref=f8e211]
+      - generic [ref=f8e212]: Playalong
+    - generic [ref=f8e213]:
+      - button "🙈 Hide video" [ref=f8e214] [cursor=pointer]
+      - button "🔇" [ref=f8e215] [cursor=pointer]
+      - button "← Creator" [ref=f8e216] [cursor=pointer]
+      - button "New song" [ref=f8e217] [cursor=pointer]
+  - generic [ref=f8e219]:
+    - iframe [ref=f8e221]:
+      - generic [ref=f12e1]:
+        - generic "YouTube Video Player" [ref=f12e3]
+        - generic [ref=f12e5]:
+          - generic:
+            - generic:
+              - button "Play video" [ref=f12e10] [cursor=pointer]
+              - button "Hide player controls" [ref=f12e14] [cursor=pointer]
+              - generic [ref=f12e16]:
+                - generic [ref=f12e21]:
+                  - generic [ref=f12e22]:
+                    - link "Ville Valo & Natalia Avelon Summer Wine original video SD" [ref=f12e23] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - link "Taika Talvi" [ref=f12e24] [cursor=pointer]:
+                      - /url: /channel/UCno1fj4nl5Jrw3LF7SAUd-w
+                  - generic [ref=f12e26]:
+                    - button [ref=f12e27] [cursor=pointer]:
+                      - img "thumbnail-image" [ref=f12e28]
+                    - generic [ref=f12e30]:
+                      - generic: Taika Talvi
+                      - generic: 9.6k subscribers
+                - generic [ref=f12e31]:
+                  - button "Share" [ref=f12e34] [cursor=pointer]
+                  - link "Watch on YouTube" [ref=f12e45] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - generic [ref=f12e46]: Watch on
+    - generic [ref=f8e222]:
+      - generic [ref=f8e223]: Intro
+      - generic [ref=f8e225]:
+        - img [ref=f8e227]:
+          - generic [ref=f8e231]: Am
+        - img [ref=f8e233]:
+          - generic [ref=f8e239]: G
+        - img [ref=f8e241]:
+          - generic [ref=f8e245]: Am
+        - img [ref=f8e247]:
+          - generic [ref=f8e253]: G
+        - img [ref=f8e255]:
+          - generic [ref=f8e259]: Am
+        - img [ref=f8e261]:
+          - generic [ref=f8e265]: Am
+        - img [ref=f8e267]:
+          - generic [ref=f8e273]: G
+        - img [ref=f8e275]:
+          - generic [ref=f8e281]: G

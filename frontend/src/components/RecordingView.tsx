@@ -4,7 +4,7 @@ import { Timeline, formatTime } from './Timeline'
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
-import type { ChordEntry, ChordDictionary, CreatorSnapshot } from '../types'
+import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
 interface Props {
   videoId: string
@@ -12,20 +12,33 @@ interface Props {
   chordDict: ChordDictionary
   initialSnapshot?: CreatorSnapshot
   onDone: (timeline: ChordEntry[], snapshot: CreatorSnapshot) => void
+  onSnapshotChange: (snapshot: CreatorSnapshot) => void
   onBack: () => void
 }
 
-export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onBack }: Props) {
+export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onBack }: Props) {
   const { containerRef, currentTime, duration, isReady, isPlaying, seekTo } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
   const [soundOn, setSoundOn] = useState(true)
   const [timeline, setTimeline] = useState<ChordEntry[]>(initialSnapshot?.timeline ?? [])
+  const [sections, setSections] = useState<Section[]>(initialSnapshot?.sections ?? [])
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(!!initialSnapshot?.timeline.length)
 
   useEffect(() => {
     if (locked) setSelectedIdx(null)
   }, [locked])
+
+  const skipNextSaveRef = useRef(true)
+  useEffect(() => {
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false
+      return
+    }
+    const t = setTimeout(() => onSnapshotChange({ timeline, sections }), 800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline, sections])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -144,6 +157,8 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             onChange={setTimeline}
             onSeek={seekTo}
             locked={locked}
+            sections={sections}
+            onSectionsChange={setSections}
           />
         ) : (
           <div className="timeline-loading">Waiting for video to load…</div>
@@ -152,7 +167,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         <div className="tap-footer">
           <button
             className="btn-primary"
-            onClick={() => onDone(timeline, { timeline })}
+            onClick={() => onDone(timeline, { timeline, sections })}
             disabled={timeline.length === 0}
           >
             ▶ Playalong

@@ -1,0 +1,5 @@
+[     133ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5184/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:21548
+[  242099ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5184/src/hooks/useYouTubePlayer.ts:58:41)
+[  275081ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5184/src/hooks/useYouTubePlayer.ts:58:41)

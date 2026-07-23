@@ -1,0 +1,32 @@
+- generic [ref=e209]:
+  - banner [ref=e210]:
+    - generic [ref=e211]:
+      - heading "UkeSync" [level=1] [ref=e212]
+      - generic [ref=e213]: Playalong
+    - generic [ref=e214]:
+      - button "🙈 Hide video" [ref=e254] [cursor=pointer]
+      - button "🔇" [ref=e215] [cursor=pointer]
+      - button "← Creator" [ref=e216] [cursor=pointer]
+      - button "New song" [ref=e217] [cursor=pointer]
+  - generic [ref=e219]:
+    - iframe [active] [ref=e221]:
+      - generic [active] [ref=f4e1]:
+        - generic "YouTube Video Player" [ref=f4e3]: "[Music]"
+        - button "Show player controls" [ref=f4e61] [cursor=pointer]
+    - generic [ref=e255]:
+      - generic [ref=e256]: Intro
+      - generic [ref=e258]:
+        - img [ref=e260]:
+          - generic [ref=e264]: Am
+        - img [ref=e266]:
+          - generic [ref=e272]: G
+        - img [ref=e274]:
+          - generic [ref=e278]: Am
+        - img [ref=e280]:
+          - generic [ref=e286]: G
+        - img [ref=e288]:
+          - generic [ref=e292]: Am
+        - img [ref=e294]:
+          - generic [ref=e298]: Am
+        - img [ref=e300]:
+          - generic [ref=e306]: G

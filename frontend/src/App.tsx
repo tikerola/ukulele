@@ -1,9 +1,11 @@
 import { useId, useState, useEffect, useCallback } from 'react'
-import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot } from './types'
+import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section } from './types'
 import { ChordOverlay } from './components/ChordOverlay'
+import { SectionChordBoard } from './components/SectionChordBoard'
 import { RecordingView } from './components/RecordingView'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
 import { useChordAudio } from './hooks/useChordAudio'
+import { useSectionChords } from './hooks/useChordSync'
 
 const API = '/api'
 
@@ -77,25 +79,31 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
 function PlayalongView({
   videoId,
   timeline,
+  sections,
   chordDict,
   onToCreator,
   onReset,
 }: {
   videoId: string
   timeline: ChordEntry[]
+  sections: Section[]
   chordDict: ChordDictionary
   onToCreator: () => void
   onReset: () => void
 }) {
   const [soundOn, setSoundOn] = useState(false)
+  const [videoHidden, setVideoHidden] = useState(false)
   const { containerRef, currentTime, isReady } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
+  const { section, entries, activeIdx, nextSection, nextChord } = useSectionChords(timeline, sections, currentTime)
 
   const handlePulse = useCallback((chord: string) => {
     if (!soundOn) return
     const data = chordDict[chord]
     if (data) playChord(data.frets)
   }, [soundOn, chordDict, playChord])
+
+  const videoClass = `yt-wrapper yt-wrapper-fixed${videoHidden ? ' yt-wrapper-hidden' : ''}`
 
   return (
     <div className="player-screen">
@@ -105,6 +113,13 @@ function PlayalongView({
           <span className="mode-badge mode-badge-playalong">Playalong</span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className={`btn-ghost${videoHidden ? ' btn-ghost-active' : ''}`}
+            onClick={() => setVideoHidden(v => !v)}
+            title={videoHidden ? 'Show video' : 'Hide video to make room for chords'}
+          >
+            {videoHidden ? '📺 Show video' : '🙈 Hide video'}
+          </button>
           <button
             className={`btn-ghost${soundOn ? ' btn-ghost-active' : ''}`}
             onClick={() => setSoundOn(v => !v)}
@@ -119,16 +134,28 @@ function PlayalongView({
 
       <div className="player-layout">
         <div className="player-left">
-          <div className="yt-wrapper">
+          <div className={videoClass}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
-          <ChordOverlay
-            timeline={timeline}
-            currentTime={currentTime}
-            chordDict={chordDict}
-            onPulse={handlePulse}
-          />
+          {section ? (
+            <SectionChordBoard
+              section={section}
+              entries={entries}
+              activeIdx={activeIdx}
+              nextSection={nextSection}
+              nextChord={nextChord}
+              chordDict={chordDict}
+              onPulse={handlePulse}
+            />
+          ) : (
+            <ChordOverlay
+              timeline={timeline}
+              currentTime={currentTime}
+              chordDict={chordDict}
+              onPulse={handlePulse}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -174,17 +201,20 @@ export default function App() {
     setIsLoading(false)
   }
 
+  const saveSnapshot = useCallback((snapshot: CreatorSnapshot) => {
+    if (!videoId) return
+    fetch(`${API}/songs/${videoId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshot, chords }),
+    }).catch(() => {})
+  }, [videoId, chords])
+
   function handleCreatorDone(taps: ChordEntry[], snapshot: CreatorSnapshot) {
     setTimeline(taps)
     setCreatorSnapshot(snapshot)
     setAppState('playalong')
-    if (videoId) {
-      fetch(`${API}/songs/${videoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ snapshot, chords }),
-      }).catch(() => {})
-    }
+    saveSnapshot(snapshot)
   }
 
   function handleReset() {
@@ -204,6 +234,7 @@ export default function App() {
         chordDict={chordDict}
         initialSnapshot={creatorSnapshot ?? undefined}
         onDone={handleCreatorDone}
+        onSnapshotChange={saveSnapshot}
         onBack={handleReset}
       />
     )
@@ -214,6 +245,7 @@ export default function App() {
       <PlayalongView
         videoId={videoId}
         timeline={timeline}
+        sections={creatorSnapshot?.sections ?? []}
         chordDict={chordDict}
         onToCreator={() => setAppState('creator')}
         onReset={handleReset}

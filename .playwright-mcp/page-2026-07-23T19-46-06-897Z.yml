@@ -1,0 +1,27 @@
+- generic [ref=e209]:
+  - banner [ref=e210]:
+    - generic [ref=e211]:
+      - heading "UkeSync" [level=1] [ref=e212]
+      - generic [ref=e213]: Playalong
+    - generic [ref=e214]:
+      - button "📺 Show video" [active] [ref=e476] [cursor=pointer]
+      - button "🔇" [ref=e215] [cursor=pointer]
+      - button "← Creator" [ref=e216] [cursor=pointer]
+      - button "New song" [ref=e217] [cursor=pointer]
+  - generic [ref=e424]:
+    - generic [ref=e425]: Intro
+    - generic [ref=e427]:
+      - img [ref=e429]:
+        - generic [ref=e433]: Am
+      - img [ref=e435]:
+        - generic [ref=e441]: G
+      - img [ref=e443]:
+        - generic [ref=e447]: Am
+      - img [ref=e449]:
+        - generic [ref=e455]: G
+      - img [ref=e457]:
+        - generic [ref=e461]: Am
+      - img [ref=e463]:
+        - generic [ref=e467]: Am
+      - img [ref=e469]:
+        - generic [ref=e475]: G

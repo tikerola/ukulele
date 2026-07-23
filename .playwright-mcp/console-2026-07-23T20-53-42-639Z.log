@@ -1,0 +1,6 @@
+[    1379ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5188/node_modules/.vite/deps/chunk-373CG7ZK.js?v=da63df07:21548
+[    1462ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5188/favicon.ico:0
+[  608400ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5188/src/hooks/useYouTubePlayer.ts:58:41)
+[  614624ms] TypeError: playerRef.current?.getCurrentTime is not a function
+    at tick (http://localhost:5188/src/hooks/useYouTubePlayer.ts:58:41)

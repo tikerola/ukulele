@@ -1,0 +1,199 @@
+- generic [ref=f8e16]:
+  - banner [ref=f8e17]:
+    - generic [ref=f8e18]:
+      - heading "UkeSync" [level=1] [ref=f8e19]
+      - generic [ref=f8e20]: Creator
+    - generic [ref=f8e21]:
+      - button "🔒" [ref=f8e22] [cursor=pointer]
+      - button "🔊" [ref=f8e23] [cursor=pointer]
+      - button "⏪ 5s" [ref=f8e24] [cursor=pointer]
+      - button "← New song" [ref=f8e25] [cursor=pointer]
+  - generic [ref=f8e26]:
+    - iframe [ref=f8e29]:
+      - generic [ref=f9e1]:
+        - generic "YouTube Video Player" [ref=f9e3]
+        - generic [ref=f9e5]:
+          - generic:
+            - generic:
+              - button "Play video" [ref=f9e10] [cursor=pointer]
+              - button "Hide player controls" [ref=f9e14] [cursor=pointer]
+              - generic [ref=f9e16]:
+                - generic [ref=f9e21]:
+                  - generic [ref=f9e22]:
+                    - link "Ville Valo & Natalia Avelon Summer Wine original video SD" [ref=f9e23] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - link "Taika Talvi" [ref=f9e24] [cursor=pointer]:
+                      - /url: /channel/UCno1fj4nl5Jrw3LF7SAUd-w
+                  - generic [ref=f9e26]:
+                    - button [ref=f9e27] [cursor=pointer]:
+                      - img "thumbnail-image" [ref=f9e28]
+                    - generic [ref=f9e30]:
+                      - generic: Taika Talvi
+                      - generic: 9.6k subscribers
+                - generic [ref=f9e31]:
+                  - button "Share" [ref=f9e34] [cursor=pointer]
+                  - link "Watch on YouTube" [ref=f9e45] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                    - generic [ref=f9e46]: Watch on
+    - generic [ref=f8e30]:
+      - generic [ref=f8e31]: 🔒 Timeline locked — unlock to make edits
+      - generic [ref=f8e32]:
+        - button "1 Am" [disabled] [ref=f8e33]:
+          - generic [ref=f8e34]: "1"
+          - generic [ref=f8e35]: Am
+          - img [ref=f8e36]:
+            - generic [ref=f8e40]: Am
+        - button "2 G" [disabled] [ref=f8e41]:
+          - generic [ref=f8e42]: "2"
+          - generic [ref=f8e43]: G
+          - img [ref=f8e44]:
+            - generic [ref=f8e50]: G
+        - button "3 Dm" [disabled] [ref=f8e51]:
+          - generic [ref=f8e52]: "3"
+          - generic [ref=f8e53]: Dm
+          - img [ref=f8e54]:
+            - generic [ref=f8e60]: Dm
+    - generic [ref=f8e61]:
+      - generic [ref=f8e62]:
+        - generic [ref=f8e63]:
+          - text: Timeline
+          - generic [ref=f8e64]: (12)
+        - generic [ref=f8e65]:
+          - generic [ref=f8e66]:
+            - button "−" [ref=f8e67] [cursor=pointer]
+            - button "+" [ref=f8e68] [cursor=pointer]
+          - button "Clear all" [disabled] [ref=f8e69]
+      - generic [ref=f8e71]:
+        - generic [ref=f8e72]:
+          - generic [ref=f8e73]: 0:00
+          - generic [ref=f8e74]: 0:02
+          - generic [ref=f8e75]: 0:04
+          - generic [ref=f8e76]: 0:06
+          - generic [ref=f8e77]: 0:08
+          - generic [ref=f8e78]: 0:10
+          - generic [ref=f8e79]: 0:12
+          - generic [ref=f8e80]: 0:14
+          - generic [ref=f8e81]: 0:16
+          - generic [ref=f8e82]: 0:18
+          - generic [ref=f8e83]: 0:20
+          - generic [ref=f8e84]: 0:22
+          - generic [ref=f8e85]: 0:24
+          - generic [ref=f8e86]: 0:26
+          - generic [ref=f8e87]: 0:28
+          - generic [ref=f8e88]: 0:30
+          - generic [ref=f8e89]: 0:32
+          - generic [ref=f8e90]: 0:34
+          - generic [ref=f8e91]: 0:36
+          - generic [ref=f8e92]: 0:38
+          - generic [ref=f8e93]: 0:40
+          - generic [ref=f8e94]: 0:42
+          - generic [ref=f8e95]: 0:44
+          - generic [ref=f8e96]: 0:46
+          - generic [ref=f8e97]: 0:48
+          - generic [ref=f8e98]: 0:50
+          - generic [ref=f8e99]: 0:52
+          - generic [ref=f8e100]: 0:54
+          - generic [ref=f8e101]: 0:56
+          - generic [ref=f8e102]: 0:58
+          - generic [ref=f8e103]: 1:00
+          - generic [ref=f8e104]: 1:02
+          - generic [ref=f8e105]: 1:04
+          - generic [ref=f8e106]: 1:06
+          - generic [ref=f8e107]: 1:08
+          - generic [ref=f8e108]: 1:10
+          - generic [ref=f8e109]: 1:12
+          - generic [ref=f8e110]: 1:14
+          - generic [ref=f8e111]: 1:16
+          - generic [ref=f8e112]: 1:18
+          - generic [ref=f8e113]: 1:20
+          - generic [ref=f8e114]: 1:22
+          - generic [ref=f8e115]: 1:24
+          - generic [ref=f8e116]: 1:26
+          - generic [ref=f8e117]: 1:28
+          - generic [ref=f8e118]: 1:30
+          - generic [ref=f8e119]: 1:32
+          - generic [ref=f8e120]: 1:34
+          - generic [ref=f8e121]: 1:36
+          - generic [ref=f8e122]: 1:38
+          - generic [ref=f8e123]: 1:40
+          - generic [ref=f8e124]: 1:42
+          - generic [ref=f8e125]: 1:44
+          - generic [ref=f8e126]: 1:46
+          - generic [ref=f8e127]: 1:48
+          - generic [ref=f8e128]: 1:50
+          - generic [ref=f8e129]: 1:52
+          - generic [ref=f8e130]: 1:54
+          - generic [ref=f8e131]: 1:56
+          - generic [ref=f8e132]: 1:58
+          - generic [ref=f8e133]: 2:00
+          - generic [ref=f8e134]: 2:02
+          - generic [ref=f8e135]: 2:04
+          - generic [ref=f8e136]: 2:06
+          - generic [ref=f8e137]: 2:08
+          - generic [ref=f8e138]: 2:10
+          - generic [ref=f8e139]: 2:12
+          - generic [ref=f8e140]: 2:14
+          - generic [ref=f8e141]: 2:16
+          - generic [ref=f8e142]: 2:18
+          - generic [ref=f8e143]: 2:20
+          - generic [ref=f8e144]: 2:22
+          - generic [ref=f8e145]: 2:24
+          - generic [ref=f8e146]: 2:26
+          - generic [ref=f8e147]: 2:28
+          - generic [ref=f8e148]: 2:30
+          - generic [ref=f8e149]: 2:32
+          - generic [ref=f8e150]: 2:34
+          - generic [ref=f8e151]: 2:36
+          - generic [ref=f8e152]: 2:38
+          - generic [ref=f8e153]: 2:40
+          - generic [ref=f8e154]: 2:42
+          - generic [ref=f8e155]: 2:44
+          - generic [ref=f8e156]: 2:46
+          - generic [ref=f8e157]: 2:48
+          - generic [ref=f8e158]: 2:50
+          - generic [ref=f8e159]: 2:52
+          - generic [ref=f8e160]: 2:54
+          - generic [ref=f8e161]: 2:56
+          - generic [ref=f8e162]: 2:58
+          - generic [ref=f8e163]: 3:00
+          - generic [ref=f8e164]: 3:02
+          - generic [ref=f8e165]: 3:04
+          - generic [ref=f8e166]: 3:06
+          - generic [ref=f8e167]: 3:08
+          - generic [ref=f8e168]: 3:10
+          - generic [ref=f8e169]: 3:12
+          - generic [ref=f8e170]: 3:14
+          - generic [ref=f8e171]: 3:16
+          - generic [ref=f8e172]: 3:18
+          - generic [ref=f8e173]: 3:20
+          - generic [ref=f8e174]: 3:22
+          - generic [ref=f8e175]: 3:24
+          - generic [ref=f8e176]: 3:26
+          - generic [ref=f8e177]: 3:28
+          - generic [ref=f8e178]: 3:30
+          - generic [ref=f8e179]: 3:32
+          - generic [ref=f8e180]: 3:34
+          - generic [ref=f8e181]: 3:36
+          - generic [ref=f8e182]: 3:38
+          - generic [ref=f8e183]: 3:40
+          - generic [ref=f8e184]: 3:42
+          - generic [ref=f8e185]: 3:44
+          - generic [ref=f8e186]: 3:46
+          - generic [ref=f8e187]: 3:48
+          - generic [ref=f8e188]: 3:50
+          - generic [ref=f8e189]: 3:52
+          - generic [ref=f8e190]: 3:54
+        - generic "Intro (0:02–0:13)" [ref=f8e192]: Intro
+        - generic "Am @ 0:02" [ref=f8e194]: Am
+        - generic "G @ 0:03" [ref=f8e195]: G
+        - generic "Am @ 0:05" [ref=f8e196]: Am
+        - generic "G @ 0:07" [ref=f8e197]: G
+        - generic "Am @ 0:08" [ref=f8e198]: Am
+        - generic "Am @ 0:10" [ref=f8e199]: Am
+        - generic "G @ 0:12" [ref=f8e200]: G
+        - generic "G @ 0:13" [ref=f8e201]: G
+        - generic "Am @ 0:15" [ref=f8e202]: Am
+        - generic "Am @ 0:17" [ref=f8e203]: Am
+        - generic "G @ 0:18" [ref=f8e204]: G
+        - generic "G @ 0:20" [ref=f8e205]: G
+    - button "▶ Playalong" [ref=f8e207] [cursor=pointer]
