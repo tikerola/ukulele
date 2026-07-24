@@ -1,0 +1,59 @@
+- generic [ref=e16]:
+  - banner [ref=e17]:
+    - generic [ref=e18]:
+      - heading "UkeSync" [level=1] [ref=e19]
+      - generic [ref=e20]: Creator
+    - generic [ref=e21]:
+      - button "🔒" [ref=e22] [cursor=pointer]
+      - button "🔊" [ref=e23] [cursor=pointer]
+      - button "⏪ 5s" [ref=e24] [cursor=pointer]
+      - button "← New song" [ref=e25] [cursor=pointer]
+  - generic [ref=e26]:
+    - generic [ref=e28]:
+      - iframe [ref=e29]:
+        - generic [ref=f1e1]:
+          - generic "YouTube Video Player" [ref=f1e3]
+          - generic [ref=f1e5]:
+            - generic:
+              - generic:
+                - button "Play video" [ref=f1e10] [cursor=pointer]
+                - button "Hide player controls" [ref=f1e14] [cursor=pointer]
+                - generic [ref=f1e16]:
+                  - generic [ref=f1e21]:
+                    - generic [ref=f1e22]:
+                      - link "Ville Valo & Natalia Avelon Summer Wine original video SD" [ref=f1e23] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                      - link "Taika Talvi" [ref=f1e24] [cursor=pointer]:
+                        - /url: /channel/UCno1fj4nl5Jrw3LF7SAUd-w
+                    - generic [ref=f1e26]:
+                      - button [ref=f1e27] [cursor=pointer]:
+                        - img "thumbnail-image" [ref=f1e28]
+                      - generic [ref=f1e30]:
+                        - generic: Taika Talvi
+                        - generic: 9.61k subscribers
+                  - generic [ref=f1e31]:
+                    - button "Share" [ref=f1e34] [cursor=pointer]
+                    - link "Watch on YouTube" [ref=f1e45] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=ONdsLfVZMso
+                      - generic [ref=f1e46]: Watch on
+      - generic: Loading player…
+    - generic [ref=e30]:
+      - generic [ref=e31]: 🔒 Timeline locked — unlock to make edits
+      - generic [ref=e32]:
+        - button "1 Am" [disabled] [ref=e33]:
+          - generic [ref=e34]: "1"
+          - generic [ref=e35]: Am
+          - img [ref=e36]:
+            - generic [ref=e40]: Am
+        - button "2 G" [disabled] [ref=e41]:
+          - generic [ref=e42]: "2"
+          - generic [ref=e43]: G
+          - img [ref=e44]:
+            - generic [ref=e50]: G
+        - button "3 Dm" [disabled] [ref=e51]:
+          - generic [ref=e52]: "3"
+          - generic [ref=e53]: Dm
+          - img [ref=e54]:
+            - generic [ref=e60]: Dm
+    - generic [ref=e61]: Waiting for video to load…
+    - button "▶ Playalong" [ref=e63] [cursor=pointer]

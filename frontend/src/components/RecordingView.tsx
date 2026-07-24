@@ -6,6 +6,13 @@ import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
+interface Snapshot {
+  timeline: ChordEntry[]
+  sections: Section[]
+}
+
+const HISTORY_LIMIT = 20
+
 interface Props {
   videoId: string
   chords: string[]
@@ -24,6 +31,38 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [sections, setSections] = useState<Section[]>(initialSnapshot?.sections ?? [])
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(!!initialSnapshot?.timeline.length)
+  const [past, setPast] = useState<Snapshot[]>([])
+  const [future, setFuture] = useState<Snapshot[]>([])
+
+  // Call before any mutation to timeline/sections so it can be undone later.
+  function recordHistory() {
+    setPast(p => [...p, { timeline, sections }].slice(-HISTORY_LIMIT))
+    setFuture([])
+  }
+
+  function undo() {
+    setPast(p => {
+      if (p.length === 0) return p
+      const prev = p[p.length - 1]
+      setFuture(f => [{ timeline, sections }, ...f].slice(0, HISTORY_LIMIT))
+      setTimeline(prev.timeline)
+      setSections(prev.sections)
+      setSelectedIdx(null)
+      return p.slice(0, -1)
+    })
+  }
+
+  function redo() {
+    setFuture(f => {
+      if (f.length === 0) return f
+      const next = f[0]
+      setPast(p => [...p, { timeline, sections }].slice(-HISTORY_LIMIT))
+      setTimeline(next.timeline)
+      setSections(next.sections)
+      setSelectedIdx(null)
+      return f.slice(1)
+    })
+  }
 
   useEffect(() => {
     if (locked) setSelectedIdx(null)
@@ -68,13 +107,14 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       const data = getChordData(chord)
       if (data) playChord(data.frets)
     }
+    recordHistory()
     if (selectedIdx !== null) {
       setTimeline(prev => prev.map((entry, i) => i === selectedIdx ? { ...entry, chord } : entry))
       return
     }
     setTimeline(prev => [...prev, { time: currentTime, chord }].sort((a, b) => a.time - b.time))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked])
+  }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -159,6 +199,11 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             locked={locked}
             sections={sections}
             onSectionsChange={setSections}
+            onBeginEdit={recordHistory}
+            canUndo={past.length > 0}
+            canRedo={future.length > 0}
+            onUndo={undo}
+            onRedo={redo}
           />
         ) : (
           <div className="timeline-loading">Waiting for video to load…</div>

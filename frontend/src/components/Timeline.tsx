@@ -12,6 +12,11 @@ interface Props {
   locked: boolean
   sections: Section[]
   onSectionsChange: (sections: Section[]) => void
+  onBeginEdit: () => void
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
 }
 
 const MIN_PPS = 10
@@ -52,7 +57,7 @@ function pickTickStep(pps: number): number {
   return 60
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, onSectionsChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
@@ -123,6 +128,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   }
 
   function deleteSection(idx: number) {
+    onBeginEdit()
     onSectionsChange(sections.filter((_, si) => si !== idx))
     setSelectedSectionIdx(null)
   }
@@ -145,6 +151,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleSectionPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
+    onBeginEdit()
     const section = sections[idx]
     const entryIndices = sectionEntryIndices(section)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -194,6 +201,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const entries = sectionEntryIndices(section).map(i => timeline[i])
     if (entries.length === 0) return
 
+    onBeginEdit()
     const lastTime = Math.max(...timeline.map(e => e.time))
     const offset = lastTime + 1 - section.startTime
     const newEntries = entries.map(e => ({ ...e, time: Math.min(duration, e.time + offset) }))
@@ -212,6 +220,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleMarkerPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
+    onBeginEdit()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragIdx(idx)
     onSelectChange(idx)
@@ -248,6 +257,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
 
   function applySection(name: string) {
     if (!rangeSel) return
+    onBeginEdit()
     const [lo, hi] = rangeSel
     const startTime = timeline[lo].time
     const endTime = timeline[hi].time
@@ -274,11 +284,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   }
 
   function deleteEntry(idx: number) {
+    onBeginEdit()
     commitTimeline(timeline.filter((_, i) => i !== idx))
     onSelectChange(null)
   }
 
   function deleteRange(range: [number, number]) {
+    onBeginEdit()
     const [lo, hi] = range
     commitTimeline(timeline.filter((_, i) => i < lo || i > hi))
     setRangeSel(null)
@@ -289,16 +301,44 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleClearAll() {
     if (locked || timeline.length === 0) return
     const count = timeline.length
-    const ok = window.confirm(`Clear all ${count} chord${count === 1 ? '' : 's'} from the timeline? This can't be undone.`)
+    const ok = window.confirm(`Clear all ${count} chord${count === 1 ? '' : 's'} from the timeline?`)
     if (!ok) return
+    onBeginEdit()
     onChange([])
     onSelectChange(null)
   }
 
+  function handleUndo() {
+    if (locked || !canUndo) return
+    setRangeSel(null)
+    setAnchorIdx(null)
+    setSelectedSectionIdx(null)
+    onUndo()
+  }
+
+  function handleRedo() {
+    if (locked || !canRedo) return
+    setRangeSel(null)
+    setAnchorIdx(null)
+    setSelectedSectionIdx(null)
+    onRedo()
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (locked) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (locked) return
+      const meta = e.ctrlKey || e.metaKey
+      if (meta && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) handleRedo(); else handleUndo()
+        return
+      }
+      if (meta && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        handleRedo()
+        return
+      }
       if (e.key === 'Escape') {
         setRangeSel(null)
         setAnchorIdx(null)
@@ -320,7 +360,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, timeline, locked, selectedSectionIdx, sections, rangeSel])
+  }, [selectedIdx, timeline, locked, selectedSectionIdx, sections, rangeSel, canUndo, canRedo])
 
   const currentSecond = Math.floor(currentTime)
   useEffect(() => {
@@ -347,6 +387,10 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       <div className="timeline-toolbar">
         <span className="timeline-label">Timeline <span className="chord-count">({timeline.length})</span></span>
         <div className="timeline-toolbar-actions">
+          <div className="timeline-zoom">
+            <button className="btn-small" onClick={handleUndo} disabled={locked || !canUndo} title={locked ? 'Unlock to undo' : 'Undo (Ctrl+Z)'}>↶ Undo</button>
+            <button className="btn-small" onClick={handleRedo} disabled={locked || !canRedo} title={locked ? 'Unlock to redo' : 'Redo (Ctrl+Shift+Z)'}>↷ Redo</button>
+          </div>
           <div className="timeline-zoom">
             <button className="btn-small" onClick={() => setPps(v => Math.max(MIN_PPS, v - 10))} title="Zoom out">−</button>
             <button className="btn-small" onClick={() => setPps(v => Math.min(MAX_PPS, v + 10))} title="Zoom in">+</button>
@@ -429,47 +473,47 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
         </div>
       </div>
 
-      {rangeSel && timeline[rangeSel[0]] && timeline[rangeSel[1]] && (
-        <div className="timeline-popover timeline-section-popover">
-          <span className="timeline-popover-hint">
-            {rangeSel[1] - rangeSel[0] + 1} chords selected ({formatTime(timeline[rangeSel[0]].time)}–{formatTime(timeline[rangeSel[1]].time)})
-          </span>
-          <div className="section-preset-buttons">
-            {SECTION_PRESETS.map(name => (
-              <button key={name} className="btn-small" onClick={() => applySection(name)}>{name}</button>
-            ))}
-          </div>
-          <input
-            className="section-name-input"
-            placeholder="Custom name…"
-            value={sectionName}
-            onChange={e => setSectionName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && sectionName.trim()) applySection(sectionName.trim()) }}
-          />
-          <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
-          <button className="btn-delete" onClick={() => deleteRange(rangeSel)}>× Delete</button>
-          <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
-        </div>
-      )}
-
-      {selectedIdx !== null && timeline[selectedIdx] && (
-        <div className="timeline-popover">
-          <span className="timeline-popover-chord">{timeline[selectedIdx].chord}</span>
-          <span>@ {formatTime(timeline[selectedIdx].time)}</span>
-          <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
-          <button className="btn-delete" onClick={() => deleteEntry(selectedIdx)}>× Delete</button>
-        </div>
-      )}
-
-      {!locked && selectedSectionIdx !== null && sections[selectedSectionIdx] && (
-        <div className="timeline-popover">
-          <span className="timeline-popover-chord">{sections[selectedSectionIdx].name}</span>
-          <span>{formatTime(sections[selectedSectionIdx].startTime)}–{formatTime(sections[selectedSectionIdx].endTime)}</span>
-          <span className="timeline-popover-hint">Drag the band to move it · Esc to deselect</span>
-          <button className="btn-small" onClick={() => duplicateSection(selectedSectionIdx)}>⎘ Duplicate</button>
-          <button className="btn-delete" onClick={() => deleteSection(selectedSectionIdx)}>× Delete section</button>
-        </div>
-      )}
+      <div className={`timeline-popover${rangeSel ? ' timeline-section-popover' : ''}`}>
+        {rangeSel && timeline[rangeSel[0]] && timeline[rangeSel[1]] ? (
+          <>
+            <span className="timeline-popover-hint">
+              {rangeSel[1] - rangeSel[0] + 1} chords selected ({formatTime(timeline[rangeSel[0]].time)}–{formatTime(timeline[rangeSel[1]].time)})
+            </span>
+            <div className="section-preset-buttons">
+              {SECTION_PRESETS.map(name => (
+                <button key={name} className="btn-small" onClick={() => applySection(name)}>{name}</button>
+              ))}
+            </div>
+            <input
+              className="section-name-input"
+              placeholder="Custom name…"
+              value={sectionName}
+              onChange={e => setSectionName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && sectionName.trim()) applySection(sectionName.trim()) }}
+            />
+            <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
+            <button className="btn-delete" onClick={() => deleteRange(rangeSel)}>× Delete</button>
+            <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
+          </>
+        ) : selectedIdx !== null && timeline[selectedIdx] ? (
+          <>
+            <span className="timeline-popover-chord">{timeline[selectedIdx].chord}</span>
+            <span>@ {formatTime(timeline[selectedIdx].time)}</span>
+            <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
+            <button className="btn-delete" onClick={() => deleteEntry(selectedIdx)}>× Delete</button>
+          </>
+        ) : !locked && selectedSectionIdx !== null && sections[selectedSectionIdx] ? (
+          <>
+            <span className="timeline-popover-chord">{sections[selectedSectionIdx].name}</span>
+            <span>{formatTime(sections[selectedSectionIdx].startTime)}–{formatTime(sections[selectedSectionIdx].endTime)}</span>
+            <span className="timeline-popover-hint">Drag the band to move it · Esc to deselect</span>
+            <button className="btn-small" onClick={() => duplicateSection(selectedSectionIdx)}>⎘ Duplicate</button>
+            <button className="btn-delete" onClick={() => deleteSection(selectedSectionIdx)}>× Delete section</button>
+          </>
+        ) : (
+          <span className="timeline-popover-hint">Select a chord or section below to edit it</span>
+        )}
+      </div>
     </div>
   )
 }

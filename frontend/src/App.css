@@ -744,6 +744,15 @@ kbd {
   font-size: 12px;
   color: var(--muted);
   flex-shrink: 0;
+  min-height: 41px;
+}
+
+.timeline-popover .btn-small,
+.timeline-popover .btn-delete,
+.timeline-popover .btn-ghost {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .timeline-popover-chord {
@@ -775,4 +784,6 @@ kbd {
   padding: 4px 8px;
   font-size: 12px;
   width: 140px;
+  height: 24px;
+  box-sizing: border-box;
 }
