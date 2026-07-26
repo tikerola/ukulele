@@ -16,7 +16,10 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
       }
     }
 
-    let currentIdx = 0
+    // -1 means playback hasn't reached the first chord's time yet — distinct
+    // from index 0, which would wrongly mark the first chord as already
+    // active (and, in RecordingView, pulse its sound) before its turn.
+    let currentIdx = -1
     for (let i = timeline.length - 1; i >= 0; i--) {
       if (currentTime >= timeline[i].time) {
         currentIdx = i
@@ -26,10 +29,11 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
 
     // Chords are grouped into fixed batches of 4; the active chord progresses
     // across a batch's slots and only the batch itself swaps out once playback
-    // moves past the last slot.
-    const batchStart = Math.floor(currentIdx / BATCH_SIZE) * BATCH_SIZE
+    // moves past the last slot. Before the first chord's time, still show the
+    // upcoming batch, just with nothing marked active inside it.
+    const batchStart = currentIdx === -1 ? 0 : Math.floor(currentIdx / BATCH_SIZE) * BATCH_SIZE
     const batch = timeline.slice(batchStart, batchStart + BATCH_SIZE)
-    const activeIdxInBatch = currentIdx - batchStart
+    const activeIdxInBatch = currentIdx === -1 ? -1 : currentIdx - batchStart
     const nextEntry = currentIdx + 1 < timeline.length ? timeline[currentIdx + 1] : null
     const isLastInBatch = activeIdxInBatch === batch.length - 1
 

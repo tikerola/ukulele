@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { Timeline, formatTime } from './Timeline'
+import { ReferenceGuide } from './ReferenceGuide'
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
+import { parseReference } from '../lib/parseReference'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
 interface Snapshot {
   timeline: ChordEntry[]
   sections: Section[]
+  referencePointer: number
 }
 
 const HISTORY_LIMIT = 20
@@ -24,7 +27,7 @@ interface Props {
 }
 
 export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onBack }: Props) {
-  const { containerRef, currentTime, duration, isReady, isPlaying, seekTo } = useYouTubePlayer(videoId)
+  const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
   const [soundOn, setSoundOn] = useState(true)
   const [timeline, setTimeline] = useState<ChordEntry[]>(initialSnapshot?.timeline ?? [])
@@ -34,9 +37,17 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [past, setPast] = useState<Snapshot[]>([])
   const [future, setFuture] = useState<Snapshot[]>([])
 
+  const [referenceText, setReferenceText] = useState(initialSnapshot?.reference ?? '')
+  const [referencePointer, setReferencePointer] = useState(0)
+  const referenceItems = useMemo(() => parseReference(referenceText), [referenceText])
+
+  useEffect(() => {
+    setReferencePointer(p => Math.min(p, referenceItems.length))
+  }, [referenceItems.length])
+
   // Call before any mutation to timeline/sections so it can be undone later.
   function recordHistory() {
-    setPast(p => [...p, { timeline, sections }].slice(-HISTORY_LIMIT))
+    setPast(p => [...p, { timeline, sections, referencePointer }].slice(-HISTORY_LIMIT))
     setFuture([])
   }
 
@@ -44,9 +55,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     setPast(p => {
       if (p.length === 0) return p
       const prev = p[p.length - 1]
-      setFuture(f => [{ timeline, sections }, ...f].slice(0, HISTORY_LIMIT))
+      setFuture(f => [{ timeline, sections, referencePointer }, ...f].slice(0, HISTORY_LIMIT))
       setTimeline(prev.timeline)
       setSections(prev.sections)
+      setReferencePointer(prev.referencePointer)
       setSelectedIdx(null)
       return p.slice(0, -1)
     })
@@ -56,9 +68,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     setFuture(f => {
       if (f.length === 0) return f
       const next = f[0]
-      setPast(p => [...p, { timeline, sections }].slice(-HISTORY_LIMIT))
+      setPast(p => [...p, { timeline, sections, referencePointer }].slice(-HISTORY_LIMIT))
       setTimeline(next.timeline)
       setSections(next.sections)
+      setReferencePointer(next.referencePointer)
       setSelectedIdx(null)
       return f.slice(1)
     })
@@ -74,10 +87,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       skipNextSaveRef.current = false
       return
     }
-    const t = setTimeout(() => onSnapshotChange({ timeline, sections }), 800)
+    const t = setTimeout(() => onSnapshotChange({ timeline, sections, reference: referenceText }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections])
+  }, [timeline, sections, referenceText])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -113,19 +126,28 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       return
     }
     setTimeline(prev => [...prev, { time: currentTime, chord }].sort((a, b) => a.time - b.time))
+    setReferencePointer(p => Math.min(p + 1, referenceItems.length))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections])
+  }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        // A focused chord/tap button would otherwise "activate" (re-tap
+        // the chord) on the same spacebar press once it's released.
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        if (isPlaying) pause(); else play()
+        return
+      }
       if (e.key === 'Escape') { setSelectedIdx(null); return }
       const i = parseInt(e.key) - 1
       if (i >= 0 && i < chords.length) assignChord(chords[i])
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [chords, assignChord])
+  }, [chords, assignChord, isPlaying, play, pause])
 
   return (
     <div className="recording-screen">
@@ -149,18 +171,29 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           >
             {soundOn ? '🔊' : '🔇'}
           </button>
+          <button
+            className={`btn-ghost${isPlaying ? ' btn-ghost-active' : ''}`}
+            onClick={() => (isPlaying ? pause() : play())}
+            disabled={!isReady}
+            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
           <button className="btn-ghost" onClick={() => seekTo(Math.max(0, currentTime - 5))} title="Rewind 5 seconds">⏪ 5s</button>
           <button className="btn-ghost" onClick={onBack}>← New song</button>
         </div>
       </header>
 
       <div className="recording-body-v2">
-        <div className="recording-video-col">
-          <div className="yt-wrapper">
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-            {!isReady && <div className="yt-loading">Loading player…</div>}
-          </div>
-        </div>
+        <div ref={containerRef} className="yt-audio-only" />
+
+        <ReferenceGuide
+          text={referenceText}
+          onTextChange={setReferenceText}
+          items={referenceItems}
+          pointer={referencePointer}
+          onPointerChange={setReferencePointer}
+        />
 
         <div className="tap-strip">
           <div className="tap-instructions">
@@ -168,7 +201,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
               ? <>🔒 Timeline locked — unlock to make edits</>
               : selectedIdx !== null && timeline[selectedIdx]
                 ? <>Selected <strong>{timeline[selectedIdx].chord}</strong> @ {formatTime(timeline[selectedIdx].time)} — click a chord to change it · <kbd>Esc</kbd> to deselect</>
-                : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd></>
+                : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause</>
             }
           </div>
           <div className="chord-buttons">
@@ -212,7 +245,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         <div className="tap-footer">
           <button
             className="btn-primary"
-            onClick={() => onDone(timeline, { timeline, sections })}
+            onClick={() => onDone(timeline, { timeline, sections, reference: referenceText })}
             disabled={timeline.length === 0}
           >
             ▶ Playalong

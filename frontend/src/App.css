@@ -28,6 +28,7 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  height: 100dvh;
   gap: 16px;
 }
 
@@ -203,7 +204,7 @@ textarea { resize: vertical; }
 
 /* ─── Player Screen ───────────────────────────────────────── */
 
-.player-screen { display: flex; flex-direction: column; height: 100vh; }
+.player-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 
 .player-layout {
   display: flex;
@@ -292,19 +293,28 @@ textarea { resize: vertical; }
 }
 
 .section-chord-grid {
+  --chord-gap: 20px;
   display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  justify-content: center;
-  gap: 20px;
+  flex-direction: column;
+  gap: var(--chord-gap);
 }
 
-/* Preview of the chord coming up after the section's last chord, flowing
-   inline in the wrap grid (unlike the batch view's absolutely-positioned
-   preview, which assumes a single row). */
+/* One balanced row of chords, sized by SectionChordBoard's JS so that
+   wrapped sections split fairly across lines instead of greedily packing
+   the first row and leaving a sparse last one. */
+.section-chord-line {
+  display: flex;
+  justify-content: center;
+  gap: var(--chord-gap);
+}
+
+/* Preview of the chord coming up after the section's last chord — its own
+   row below the balanced chord lines (unlike the batch view's
+   absolutely-positioned preview, which assumes a single row). */
 .section-chord-next {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   animation: next-preview-blink 1s ease-in-out infinite;
 }
@@ -321,6 +331,7 @@ textarea { resize: vertical; }
   padding: 14px 20px;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .chord-strip-inner {
@@ -404,24 +415,139 @@ textarea { resize: vertical; }
   box-shadow: 0 0 0 3px rgba(255, 200, 0, 0.2), 0 0 16px rgba(255, 200, 0, 0.1);
 }
 
+/* ─── Small-screen playalong adjustments ──────────────────── */
+/* Shrink the video and tighten spacing so the chord grid keeps enough
+   vertical room to display without being clipped or needing a scroll. */
+@media (max-height: 700px) {
+  .yt-wrapper-fixed { flex-basis: 26vh; max-height: 26vh; }
+  .app-header-compact { padding: 8px 16px; }
+  .section-board { padding: 10px 16px; }
+  .section-board-header { margin-bottom: 8px; }
+  .section-chord-grid { --chord-gap: 14px; }
+  .chord-row-wrapper { padding: 10px 16px; }
+  .chord-row { gap: 18px; }
+}
+
+@media (max-height: 560px) {
+  .yt-wrapper-fixed { flex-basis: 20vh; max-height: 20vh; }
+  .chord-row-item svg { width: 66px; height: 84px; }
+}
+
 /* ─── Recording Screen ────────────────────────────────────── */
 
-.recording-screen { display: flex; flex-direction: column; height: 100vh; }
+.recording-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 
 .recording-body-v2 {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   flex: 1;
   min-height: 0;
 }
 
-.recording-video-col {
+/* Mounts the (invisible) YouTube iframe for audio + time sync only —
+   creator mode has no video area, so this stays out of the flow entirely. */
+.yt-audio-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── Reference Guide ─────────────────────────────────────── */
+
+.reference-guide {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  min-height: 41px;
+}
+
+.reference-guide .btn-small { flex-shrink: 0; height: 24px; display: inline-flex; align-items: center; }
+
+.reference-guide-editing {
   flex-direction: column;
-  flex: 1;
-  min-width: 0;
+  align-items: stretch;
+  padding: 10px 14px;
   min-height: 0;
 }
+
+.reference-textarea {
+  width: 100%;
+  resize: vertical;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.reference-editing-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.reference-parse-hint, .reference-empty-hint {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.reference-strip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.reference-chip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.reference-section-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.reference-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.12s, background 0.12s, opacity 0.12s;
+}
+
+.reference-chip-current {
+  border-color: var(--primary);
+  background: rgba(88, 166, 255, 0.15);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25);
+}
+
+.reference-chip-done { opacity: 0.45; }
 
 .tap-strip {
   flex-shrink: 0;

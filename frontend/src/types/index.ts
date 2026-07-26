@@ -22,4 +22,5 @@ export interface Section {
 export interface CreatorSnapshot {
   timeline: ChordEntry[]
   sections?: Section[]
+  reference?: string
 }
