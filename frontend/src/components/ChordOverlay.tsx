@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { useChordSync } from '../hooks/useChordSync'
+import { restartChordProgress } from '../lib/chordProgress'
 import type { ChordEntry, ChordDictionary } from '../types'
 
 interface Props {
@@ -13,12 +14,14 @@ interface Props {
 const CHORD_SIZE = 1.3
 
 export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Props) {
-  const { currentIdx, batch, activeIdxInBatch, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
+  const { currentIdx, batch, activeIdxInBatch, isLastInBatch, nextChord, nextTime } = useChordSync(timeline, currentTime)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastIdxRef = useRef(-1)
   const onPulseRef = useRef(onPulse)
   onPulseRef.current = onPulse
+  const currentTimeRef = useRef(currentTime)
+  currentTimeRef.current = currentTime
 
   useLayoutEffect(() => {
     if (currentIdx === -1 || currentIdx === lastIdxRef.current) return
@@ -36,9 +39,12 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
       void el.offsetWidth
       el.classList.add('beat-pulse')
       el.classList.add('beat-sustained')
+
+      const startTime = batch[activeIdxInBatch]?.time
+      if (startTime !== undefined) restartChordProgress(el, startTime, nextTime, currentTimeRef.current)
     }
     onPulseRef.current?.(batch[activeIdxInBatch]?.chord ?? '')
-  }, [currentIdx, activeIdxInBatch, batch])
+  }, [currentIdx, activeIdxInBatch, batch, nextTime])
 
   return (
     <div className="chord-row-wrapper">
@@ -51,6 +57,10 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
               className={`chord-row-item${i === activeIdxInBatch ? ' chord-row-item-active' : ''}`}
             >
               <ChordDiagram chord={entry.chord} data={chordDict[entry.chord] ?? null} size={CHORD_SIZE} />
+              <div className="chord-progress-track">
+                <div className="chord-progress-fill" data-progress-fill />
+                <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
+              </div>
             </div>
           ))}
         </div>

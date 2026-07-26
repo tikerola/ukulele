@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
+import { restartChordProgress } from '../lib/chordProgress'
 import type { ChordEntry, ChordDictionary, Section } from '../types'
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
   activeIdx: number
   nextSection: Section | null
   nextChord: string | null
+  activeChordEndTime: number | null
+  currentTime: number
   chordDict: ChordDictionary
   onPulse?: (chord: string) => void
 }
@@ -26,12 +29,14 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, chordDict, onPulse }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse }: Props) {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
   const onPulseRef = useRef(onPulse)
   onPulseRef.current = onPulse
+  const currentTimeRef = useRef(currentTime)
+  currentTimeRef.current = currentTime
 
   const gridRef = useRef<HTMLDivElement | null>(null)
   const [rows, setRows] = useState<number[]>(entries.length ? [entries.length] : [])
@@ -92,10 +97,13 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
       void el.offsetWidth
       el.classList.add('beat-pulse')
       el.classList.add('beat-sustained')
+
+      const startTime = entries[activeIdx]?.time
+      if (startTime !== undefined) restartChordProgress(el, startTime, activeChordEndTime, currentTimeRef.current)
     }
     onPulseRef.current?.(entries[activeIdx]?.chord ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pulseKey, activeIdx])
+  }, [pulseKey, activeIdx, activeChordEndTime])
 
   let cursor = 0
   const rowGroups = safeRows.map(count => {
@@ -110,6 +118,10 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           className={`chord-row-item${i === activeIdx ? ' chord-row-item-active' : ''}`}
         >
           <ChordDiagram chord={entry.chord} data={chordDict[entry.chord] ?? null} size={CHORD_SIZE} />
+          <div className="chord-progress-track">
+            <div className="chord-progress-fill" data-progress-fill />
+            <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
+          </div>
         </div>
       )
     })

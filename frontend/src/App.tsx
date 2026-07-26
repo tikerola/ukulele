@@ -95,7 +95,7 @@ function PlayalongView({
   const [videoHidden, setVideoHidden] = useState(false)
   const { containerRef, currentTime, isReady } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
-  const { section, entries, activeIdx, nextSection, nextChord } = useSectionChords(timeline, sections, currentTime)
+  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime } = useSectionChords(timeline, sections, currentTime)
 
   const handlePulse = useCallback((chord: string) => {
     if (!soundOn) return
@@ -145,6 +145,8 @@ function PlayalongView({
               activeIdx={activeIdx}
               nextSection={nextSection}
               nextChord={nextChord}
+              activeChordEndTime={activeChordEndTime}
+              currentTime={currentTime}
               chordDict={chordDict}
               onPulse={handlePulse}
             />

@@ -98,6 +98,7 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
         activeIdx: -1,
         nextSection: null as Section | null,
         nextChord: null as string | null,
+        activeChordEndTime: null as number | null,
       }
     }
 
@@ -109,12 +110,22 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
 
     const sectionIdx = sorted.indexOf(section)
 
+    // When the active chord is the last one in the section, its window
+    // extends into whatever timeline entry comes next (see `sectionWindow`
+    // above) rather than ending at the section boundary.
+    const activeChordEndTime = activeIdx === -1
+      ? null
+      : activeIdx + 1 < entries.length
+        ? entries[activeIdx + 1].time
+        : (window.activeUntil === Infinity ? null : window.activeUntil)
+
     return {
       section,
       entries,
       activeIdx,
       nextSection: sorted[sectionIdx + 1] ?? null,
       nextChord: nextEntry?.chord ?? null,
+      activeChordEndTime,
     }
   }, [timeline, sections, currentTime])
 }
