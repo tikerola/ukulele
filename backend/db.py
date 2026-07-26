@@ -39,7 +39,10 @@ def init_db() -> None:
                 CREATE TABLE IF NOT EXISTS songs (
                     video_id   TEXT PRIMARY KEY,
                     data       TEXT NOT NULL,
+                    title      TEXT,
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             """)
+            # Backfills the column on databases created before `title` existed.
+            cur.execute("ALTER TABLE songs ADD COLUMN IF NOT EXISTS title TEXT")
         conn.commit()

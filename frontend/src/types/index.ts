@@ -24,3 +24,10 @@ export interface CreatorSnapshot {
   sections?: Section[]
   reference?: string
 }
+
+export interface SavedSong {
+  video_id: string
+  title: string | null
+  chords: string[]
+  updated_at: string
+}

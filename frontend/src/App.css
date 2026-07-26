@@ -101,6 +101,38 @@ body {
   margin: 0 auto;
 }
 
+.mode-toggle {
+  display: flex;
+  gap: 6px;
+  margin: 0 24px 20px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mode-toggle-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-toggle-btn:hover:not(:disabled):not(.mode-toggle-btn-active) { color: var(--text); }
+
+.mode-toggle-btn:disabled { opacity: 0.4; cursor: default; }
+
+.mode-toggle-btn-active {
+  background: var(--primary);
+  color: #0d1117;
+}
+
 .input-form {
   padding: 0 24px 40px;
   display: flex;
@@ -130,6 +162,15 @@ input, textarea, select {
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--primary);
+}
+
+input[readonly] {
+  color: var(--muted);
+  cursor: default;
+}
+
+input[readonly]:focus {
+  border-color: var(--border);
 }
 
 textarea { resize: vertical; }
@@ -187,6 +228,17 @@ textarea { resize: vertical; }
 }
 
 .btn-delete:hover { color: var(--danger); }
+
+.btn-delete-saved {
+  align-self: center;
+  margin-top: -6px;
+  font-size: 13px;
+}
+
+.btn-delete-saved:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 /* ─── Error Banner ────────────────────────────────────────── */
 

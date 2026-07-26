@@ -1,5 +1,5 @@
 import { useId, useState, useEffect, useCallback } from 'react'
-import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section } from './types'
+import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section, SavedSong } from './types'
 import { ChordOverlay } from './components/ChordOverlay'
 import { SectionChordBoard } from './components/SectionChordBoard'
 import { RecordingView } from './components/RecordingView'
@@ -18,20 +18,87 @@ function parseChords(input: string): string[] {
   return input.split(/\s+/).filter(s => s.length > 0)
 }
 
+function watchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${videoId}`
+}
+
 // ─── Home screen ────────────────────────────────────────────────
 
-function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: string[]) => void; isLoading?: boolean }) {
-  const [url, setUrl] = useState('https://www.youtube.com/watch?v=ONdsLfVZMso')
-  const [chordText, setChordText] = useState('Am G Dm')
+const URL_PLACEHOLDER = 'https://www.youtube.com/watch?v=ONdsLfVZMso'
+const CHORDS_PLACEHOLDER = 'Am G Dm'
+
+function InputForm({ onStart, isLoading, savedSongs, onDeleteSaved }: { onStart: (url: string, chords: string[]) => void; isLoading?: boolean; savedSongs: SavedSong[]; onDeleteSaved: (videoId: string) => Promise<void> }) {
+  const [mode, setMode] = useState<'new' | 'saved'>('new')
+  const [url, setUrl] = useState('')
+  const [chordText, setChordText] = useState('')
+  const [selectedVideoId, setSelectedVideoId] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
   const urlId = useId()
   const chordsId = useId()
+  const savedId = useId()
+
+  function selectSaved(videoId: string) {
+    const song = savedSongs.find(s => s.video_id === videoId)
+    if (!song) return
+    setSelectedVideoId(videoId)
+    setUrl(watchUrl(videoId))
+    setChordText(song.chords.join(' '))
+  }
+
+  function handleModeChange(next: 'new' | 'saved') {
+    setMode(next)
+    if (next === 'saved') {
+      if (savedSongs.length > 0) selectSaved(savedSongs[0].video_id)
+    } else {
+      setSelectedVideoId('')
+      setUrl('')
+      setChordText('')
+    }
+  }
+
+  // If the selected song disappears from the list (deleted, here or elsewhere),
+  // fall back to the next one — or back to "New song" if none are left.
+  useEffect(() => {
+    if (mode !== 'saved') return
+    if (savedSongs.length === 0) {
+      handleModeChange('new')
+      return
+    }
+    if (!savedSongs.some(s => s.video_id === selectedVideoId)) {
+      selectSaved(savedSongs[0].video_id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSongs])
+
+  async function handleDelete() {
+    const song = savedSongs.find(s => s.video_id === selectedVideoId)
+    if (!song) return
+    const label = song.title ?? song.video_id
+    if (!window.confirm(`Delete "${label}" from saved songs? This can't be undone.`)) return
+    setIsDeleting(true)
+    await onDeleteSaved(song.video_id)
+    setIsDeleting(false)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const chords = parseChords(chordText)
     if (!url.trim() || chords.length === 0) return
+
+    if (mode === 'new') {
+      const vid = extractVideoId(url.trim())
+      const existing = vid ? savedSongs.find(s => s.video_id === vid) : undefined
+      if (existing) {
+        const label = existing.title ?? existing.video_id
+        window.alert(`"${label}" is already saved. Open it from the "Saved songs" tab instead.`)
+        return
+      }
+    }
+
     onStart(url.trim(), chords)
   }
+
+  const usingSaved = mode === 'saved' && savedSongs.length > 0
 
   return (
     <div className="input-screen">
@@ -39,15 +106,57 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
         <h1>UkeSync</h1>
         <p className="tagline">Ukulele playalong from YouTube — create once, play forever</p>
       </header>
+
+      <div className="mode-toggle" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'new'}
+          className={`mode-toggle-btn${mode === 'new' ? ' mode-toggle-btn-active' : ''}`}
+          onClick={() => handleModeChange('new')}
+        >
+          New song
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'saved'}
+          className={`mode-toggle-btn${mode === 'saved' ? ' mode-toggle-btn-active' : ''}`}
+          onClick={() => handleModeChange('saved')}
+          disabled={savedSongs.length === 0}
+          title={savedSongs.length === 0 ? 'No saved songs yet' : undefined}
+        >
+          Saved songs{savedSongs.length > 0 ? ` (${savedSongs.length})` : ''}
+        </button>
+      </div>
+
       <form className="input-form" onSubmit={handleSubmit}>
+        {mode === 'saved' && (
+          savedSongs.length === 0 ? (
+            <p className="field-hint">You haven't saved any songs yet — switch to "New song" to create one.</p>
+          ) : (
+            <div className="field">
+              <label htmlFor={savedId}>Saved song</label>
+              <select id={savedId} value={selectedVideoId} onChange={e => selectSaved(e.target.value)}>
+                {savedSongs.map(s => (
+                  <option key={s.video_id} value={s.video_id}>
+                    {s.title ?? s.video_id} — {s.chords.join(', ') || 'no chords yet'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        )}
+
         <div className="field">
           <label htmlFor={urlId}>YouTube URL</label>
           <input
             id={urlId}
             type="url"
-            placeholder="https://www.youtube.com/watch?v=..."
+            placeholder={URL_PLACEHOLDER}
             value={url}
             onChange={e => setUrl(e.target.value)}
+            readOnly={usingSaved}
             required
           />
         </div>
@@ -57,18 +166,31 @@ function InputForm({ onStart, isLoading }: { onStart: (url: string, chords: stri
           <textarea
             id={chordsId}
             rows={3}
-            placeholder="C Em G F Am"
+            placeholder={CHORDS_PLACEHOLDER}
             value={chordText}
             onChange={e => setChordText(e.target.value)}
           />
           <span className="field-hint">
-            List every unique chord — you'll record them onto the timeline in Creator mode
+            {usingSaved
+              ? 'Add more chords here if the recording needs them — you can record the new ones onto the timeline in Creator mode'
+              : "List every unique chord — you'll record them onto the timeline in Creator mode"}
           </span>
         </div>
 
-        <button className="btn-primary" type="submit" disabled={isLoading}>
-          {isLoading ? 'Loading…' : 'Open in Creator →'}
+        <button className="btn-primary" type="submit" disabled={isLoading || (mode === 'saved' && savedSongs.length === 0)}>
+          {isLoading ? 'Loading…' : usingSaved ? 'Open saved song →' : 'Open in Creator →'}
         </button>
+
+        {usingSaved && (
+          <button
+            type="button"
+            className="btn-delete btn-delete-saved"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting…' : '× Delete this saved song'}
+          </button>
+        )}
       </form>
     </div>
   )
@@ -175,13 +297,22 @@ export default function App() {
   const [timeline, setTimeline] = useState<ChordEntry[]>([])
   const [chordDict, setChordDict] = useState<ChordDictionary>({})
   const [creatorSnapshot, setCreatorSnapshot] = useState<CreatorSnapshot | null>(null)
+  const [savedSongs, setSavedSongs] = useState<SavedSong[]>([])
+
+  const refreshSavedSongs = useCallback(() => {
+    fetch(`${API}/songs`)
+      .then(r => r.json())
+      .then(setSavedSongs)
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch(`${API}/chords`)
       .then(r => r.json())
       .then(setChordDict)
       .catch(() => {})
-  }, [])
+    refreshSavedSongs()
+  }, [refreshSavedSongs])
 
   async function handleStart(url: string, songChords: string[]) {
     const vid = extractVideoId(url)
@@ -202,6 +333,11 @@ export default function App() {
     setAppState('creator')
     setIsLoading(false)
   }
+
+  const deleteSavedSong = useCallback(async (vid: string) => {
+    await fetch(`${API}/songs/${vid}`, { method: 'DELETE' }).catch(() => {})
+    refreshSavedSongs()
+  }, [refreshSavedSongs])
 
   const saveSnapshot = useCallback((snapshot: CreatorSnapshot) => {
     if (!videoId) return
@@ -226,6 +362,7 @@ export default function App() {
     setTimeline([])
     setCreatorSnapshot(null)
     setError(null)
+    refreshSavedSongs()
   }
 
   if (appState === 'creator' && videoId) {
@@ -257,7 +394,7 @@ export default function App() {
 
   return (
     <>
-      <InputForm onStart={handleStart} isLoading={isLoading} />
+      <InputForm onStart={handleStart} isLoading={isLoading} savedSongs={savedSongs} onDeleteSaved={deleteSavedSong} />
       {error && <div className="error-banner">{error}</div>}
     </>
   )
