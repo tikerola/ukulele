@@ -301,11 +301,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleClearAll() {
     if (locked || timeline.length === 0) return
     const count = timeline.length
-    const ok = window.confirm(`Clear all ${count} chord${count === 1 ? '' : 's'} from the timeline?`)
+    const ok = window.confirm(`Clear all ${count} chord${count === 1 ? '' : 's'} and all sections from the timeline?`)
     if (!ok) return
     onBeginEdit()
     onChange([])
+    onSectionsChange([])
     onSelectChange(null)
+    setSelectedSectionIdx(null)
   }
 
   function handleUndo() {
