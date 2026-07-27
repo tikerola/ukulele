@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { buildChordGroups } from '../lib/chordGroups'
 import type { ChordEntry, Section } from '../types'
 
 interface Props {
@@ -328,6 +329,45 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
   }
 
+  // A marker can glue to its immediate predecessor only when they share the
+  // same chord — gluing across a chord change wouldn't make sense (there'd
+  // be nothing to blink together).
+  function canGlueToPrevious(idx: number): boolean {
+    return idx > 0 && timeline[idx - 1].chord === timeline[idx].chord
+  }
+
+  function toggleGlue(idx: number) {
+    if (locked || !canGlueToPrevious(idx)) return
+    onBeginEdit()
+    onChange(timeline.map((entry, i) => i === idx ? { ...entry, tied: !entry.tied } : entry))
+  }
+
+  // Applied to a contiguous, same-chord range selection — glues (or
+  // unglues, if already fully glued) every entry after the first into one
+  // shared card.
+  function setGlueRange(lo: number, hi: number, tied: boolean) {
+    if (locked) return
+    onBeginEdit()
+    onChange(timeline.map((entry, i) => (i > lo && i <= hi) ? { ...entry, tied } : entry))
+  }
+
+  // Ungludes an entire glued run in one step — used by clicking its
+  // persistent chain badge, so breaking a glue doesn't require re-doing the
+  // shift-click range selection that created it.
+  function removeGlueGroup(indices: number[]) {
+    if (locked) return
+    onBeginEdit()
+    const rest = new Set(indices.slice(1))
+    onChange(timeline.map((entry, i) => rest.has(i) ? { ...entry, tied: false } : entry))
+  }
+
+  function rangeGlueInfo(lo: number, hi: number): { eligible: boolean; fullyGlued: boolean } {
+    if (hi <= lo) return { eligible: false, fullyGlued: false }
+    const sameChord = timeline.slice(lo, hi + 1).every(e => e.chord === timeline[lo].chord)
+    const fullyGlued = sameChord && timeline.slice(lo + 1, hi + 1).every(e => e.tied)
+    return { eligible: sameChord, fullyGlued }
+  }
+
   function deleteRange(range: [number, number]) {
     onBeginEdit()
     const [lo, hi] = range
@@ -422,6 +462,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     for (let t = 0; t <= duration; t += tickStep) result.push(t)
     return result
   }, [duration, tickStep])
+
+  // Runs of 2+ glued entries — one persistent chain badge per run, drawn
+  // under its markers regardless of how close together they are (unlike a
+  // connecting line, which has nowhere to go once adjacent pills touch).
+  const glueGroups = useMemo(() => buildChordGroups(timeline).filter(g => g.length > 1), [timeline])
 
   return (
     <div className="timeline-wrapper">
@@ -548,6 +593,25 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             />
           )}
 
+          {glueGroups.map(indices => {
+            const first = markerRects[indices[0]]
+            const last = markerRects[indices[indices.length - 1]]
+            const center = first && last
+              ? (first.left + last.right) / 2
+              : (timeline[indices[0]].time + timeline[indices[indices.length - 1]].time) / 2 * pps
+            return (
+              <div
+                key={`glue-${indices[0]}`}
+                className={`timeline-glue-badge${locked ? ' timeline-glue-badge-locked' : ''}`}
+                style={{ left: center }}
+                onClick={e => { e.stopPropagation(); removeGlueGroup(indices) }}
+                title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to unglue`}
+              >
+                🔗
+              </div>
+            )
+          })}
+
           {timeline.map((entry, idx) => (
             <div
               key={idx}
@@ -583,6 +647,18 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onKeyDown={e => { if (e.key === 'Enter' && sectionName.trim()) applySection(sectionName.trim()) }}
             />
             <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
+            {rangeGlueInfo(rangeSel[0], rangeSel[1]).eligible && (
+              <>
+                <span className="popover-divider" />
+                <button
+                  className="btn-glue"
+                  onClick={() => setGlueRange(rangeSel[0], rangeSel[1], !rangeGlueInfo(rangeSel[0], rangeSel[1]).fullyGlued)}
+                  title="Same-chord entries can share one blinking card instead of a card each — not a section"
+                >
+                  {rangeGlueInfo(rangeSel[0], rangeSel[1]).fullyGlued ? '🔓 Unglue' : '🔗 Glue'}
+                </button>
+              </>
+            )}
             <button className="btn-delete" onClick={() => deleteRange(rangeSel)}>× Delete</button>
             <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
           </>
@@ -591,6 +667,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <span className="timeline-popover-chord">{timeline[selectedIdx].chord}</span>
             <span>@ {formatTime(timeline[selectedIdx].time)}</span>
             <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
+            {canGlueToPrevious(selectedIdx) && (
+              <button
+                className="btn-glue"
+                onClick={() => toggleGlue(selectedIdx)}
+                title="Share one blinking card with the previous same-chord entry"
+              >
+                {timeline[selectedIdx].tied ? '🔓 Unglue' : '🔗 Glue to previous'}
+              </button>
+            )}
             <button className="btn-delete" onClick={() => deleteEntry(selectedIdx)}>× Delete</button>
           </>
         ) : !locked && selectedSectionIdx !== null && sections[selectedSectionIdx] ? (

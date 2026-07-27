@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { restartChordProgress } from '../lib/chordProgress'
+import { buildChordGroups } from '../lib/chordGroups'
 import type { ChordEntry, ChordDictionary, Section } from '../types'
 
 interface Props {
@@ -38,8 +39,13 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
   const currentTimeRef = useRef(currentTime)
   currentTimeRef.current = currentTime
 
+  // One entry per rendered card — a run of `tied` same-chord entries
+  // collapses into a single group, which then shares one DOM node (and one
+  // repeatedly-restarted pulse/progress bar) across all of its entries.
+  const displayGroups = buildChordGroups(entries)
+
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const [rows, setRows] = useState<number[]>(entries.length ? [entries.length] : [])
+  const [rows, setRows] = useState<number[]>(displayGroups.length ? [displayGroups.length] : [])
 
   // Measures the actual rendered chord width and container width to work out
   // how many chords fit per row, then regroups into balanced rows. Runs
@@ -47,9 +53,9 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
   // measurable on the DOM) never flashes.
   useLayoutEffect(() => {
     const container = gridRef.current
-    const first = itemRefs.current[0]
+    const first = itemRefs.current[displayGroups[0]?.[0] ?? -1]
     if (!container || !first) {
-      setRows(entries.length ? [entries.length] : [])
+      setRows(displayGroups.length ? [displayGroups.length] : [])
       return
     }
 
@@ -59,7 +65,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
       const styles = getComputedStyle(container!)
       const gap = parseFloat(styles.getPropertyValue('--chord-gap')) || 0
       const maxPerRow = Math.max(1, Math.floor((container!.clientWidth + gap) / (itemWidth + gap)))
-      setRows(distributeRows(entries.length, maxPerRow))
+      setRows(distributeRows(displayGroups.length, maxPerRow))
     }
 
     recompute()
@@ -70,14 +76,15 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
       ro.disconnect()
       window.removeEventListener('resize', recompute)
     }
-  }, [entries.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayGroups.length])
 
-  // `rows` can briefly disagree with `entries.length` right after a section
-  // change (state hasn't caught up yet) — fall back to one row rather than
-  // render a mismatched slice.
-  const safeRows = rows.reduce((a, b) => a + b, 0) === entries.length
+  // `rows` can briefly disagree with `displayGroups.length` right after a
+  // section change (state hasn't caught up yet) — fall back to one row
+  // rather than render a mismatched slice.
+  const safeRows = rows.reduce((a, b) => a + b, 0) === displayGroups.length
     ? rows
-    : (entries.length ? [entries.length] : [])
+    : (displayGroups.length ? [displayGroups.length] : [])
 
   const pulseKey = `${section.name}:${section.startTime}:${activeIdx}`
 
@@ -98,7 +105,11 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
       el.classList.add('beat-pulse')
       el.classList.add('beat-sustained')
 
-      const startTime = entries[activeIdx]?.time
+      // The bar spans the whole glued run — from its first beat, not
+      // whichever beat is currently pulsing — so it drains once across all
+      // of a group's beats instead of resetting full on each one.
+      const activeGroup = displayGroups.find(g => g.includes(activeIdx))
+      const startTime = activeGroup ? entries[activeGroup[0]]?.time : entries[activeIdx]?.time
       if (startTime !== undefined) restartChordProgress(el, startTime, activeChordEndTime, currentTimeRef.current)
     }
     onPulseRef.current?.(entries[activeIdx]?.chord ?? '')
@@ -109,15 +120,15 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
   const rowGroups = safeRows.map(count => {
     const start = cursor
     cursor += count
-    return entries.slice(start, start + count).map((entry, offset) => {
-      const i = start + offset
+    return displayGroups.slice(start, start + count).map(indices => {
+      const anchor = entries[indices[0]]
       return (
         <div
-          key={i}
-          ref={el => { itemRefs.current[i] = el }}
-          className={`chord-row-item${i === activeIdx ? ' chord-row-item-active' : ''}`}
+          key={indices[0]}
+          ref={el => { indices.forEach(i => { itemRefs.current[i] = el }) }}
+          className={`chord-row-item${indices.includes(activeIdx) ? ' chord-row-item-active' : ''}`}
         >
-          <ChordDiagram chord={entry.chord} data={chordDict[entry.chord] ?? null} size={CHORD_SIZE} />
+          <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} />
           <div className="chord-progress-track">
             <div className="chord-progress-fill" data-progress-fill />
             <div className="chord-progress-ticks"><span /><span /><span /><span /></div>

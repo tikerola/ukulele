@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { buildChordGroups } from '../lib/chordGroups'
 import type { ChordEntry, Section } from '../types'
 
 const BATCH_SIZE = 4
@@ -8,9 +9,9 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
     if (timeline.length === 0) {
       return {
         currentIdx: -1,
-        batch: [] as ChordEntry[],
-        activeIdxInBatch: -1,
-        nextTime: null as number | null,
+        batchGroups: [] as number[][],
+        activeGroupIdxInBatch: -1,
+        activeChordEndTime: null as number | null,
         isLastInBatch: false,
         nextChord: null as string | null,
       }
@@ -27,21 +28,40 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
       }
     }
 
-    // Chords are grouped into fixed batches of 4; the active chord progresses
-    // across a batch's slots and only the batch itself swaps out once playback
-    // moves past the last slot. Before the first chord's time, still show the
-    // upcoming batch, just with nothing marked active inside it.
-    const batchStart = currentIdx === -1 ? 0 : Math.floor(currentIdx / BATCH_SIZE) * BATCH_SIZE
-    const batch = timeline.slice(batchStart, batchStart + BATCH_SIZE)
-    const activeIdxInBatch = currentIdx === -1 ? -1 : currentIdx - batchStart
+    // Batches are measured in *chord groups*, not raw entries — a glued run
+    // of repeats counts as a single slot, same as it renders as a single
+    // card. Batching by raw entry count instead would let one glued run
+    // fill an entire batch by itself, hiding the other upcoming chords that
+    // are supposed to share the row with it.
+    const groups = buildChordGroups(timeline)
+    const currentGroupIdx = currentIdx === -1 ? -1 : groups.findIndex(g => g.includes(currentIdx))
+    const batchGroupStart = currentGroupIdx === -1 ? 0 : Math.floor(currentGroupIdx / BATCH_SIZE) * BATCH_SIZE
+    const batchGroups = groups.slice(batchGroupStart, batchGroupStart + BATCH_SIZE)
+    const activeGroupIdxInBatch = currentGroupIdx === -1 ? -1 : currentGroupIdx - batchGroupStart
+
+    // The chord's progress bar should drain across its *whole* glued run,
+    // not reset every beat within it — so this is the time of the next
+    // *different* chord (the first entry of the following group), not the
+    // next raw beat. null once there's nothing left in the timeline.
+    const currentGroup = currentGroupIdx === -1 ? null : groups[currentGroupIdx]
+    const groupLastIdx = currentGroup ? currentGroup[currentGroup.length - 1] : -1
+    const activeChordEndTime = currentGroup && groupLastIdx + 1 < timeline.length
+      ? timeline[groupLastIdx + 1].time
+      : null
+
     const nextEntry = currentIdx + 1 < timeline.length ? timeline[currentIdx + 1] : null
-    const isLastInBatch = activeIdxInBatch === batch.length - 1
+
+    // True only on the last beat of the last group in the batch — i.e. the
+    // moment the whole visible row is about to swap out — not on every beat
+    // of a glued run that happens to occupy the last slot.
+    const lastGroupInBatch = batchGroups[batchGroups.length - 1]
+    const isLastInBatch = !!lastGroupInBatch && currentIdx === lastGroupInBatch[lastGroupInBatch.length - 1]
 
     return {
       currentIdx,
-      batch,
-      activeIdxInBatch,
-      nextTime: nextEntry?.time ?? null,
+      batchGroups,
+      activeGroupIdxInBatch,
+      activeChordEndTime,
       isLastInBatch,
       nextChord: nextEntry?.chord ?? null,
     }
@@ -110,13 +130,18 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
 
     const sectionIdx = sorted.indexOf(section)
 
-    // When the active chord is the last one in the section, its window
-    // extends into whatever timeline entry comes next (see `sectionWindow`
-    // above) rather than ending at the section boundary.
-    const activeChordEndTime = activeIdx === -1
+    // The progress bar should drain across the *whole* glued run rather than
+    // resetting every beat within it, so this resolves to the time of the
+    // next *different* chord — the group's own last beat's window extends
+    // into the section's next entry (or the section boundary, for the
+    // section's final group), just as a single ungrouped chord's would.
+    const groups = buildChordGroups(entries)
+    const activeGroup = activeIdx === -1 ? null : groups.find(g => g.includes(activeIdx)) ?? null
+    const groupLastIdx = activeGroup ? activeGroup[activeGroup.length - 1] : -1
+    const activeChordEndTime = !activeGroup
       ? null
-      : activeIdx + 1 < entries.length
-        ? entries[activeIdx + 1].time
+      : groupLastIdx + 1 < entries.length
+        ? entries[groupLastIdx + 1].time
         : (window.activeUntil === Infinity ? null : window.activeUntil)
 
     return {

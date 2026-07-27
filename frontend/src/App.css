@@ -219,6 +219,27 @@ textarea { resize: vertical; }
 .btn-small:disabled { opacity: 0.4; cursor: default; }
 .btn-small-active { background: rgba(88, 166, 255, 0.15); border-color: var(--primary); }
 
+/* Deliberately distinct from .btn-small so gluing doesn't read as "add a
+   section" — they sit right next to each other in the range popover. */
+.btn-glue {
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-glue:hover { background: rgba(88, 166, 255, 0.22); }
+
+.popover-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
 .btn-delete {
   background: none;
   border: none;
@@ -1017,6 +1038,29 @@ kbd {
 .timeline-trim-handle-locked {
   cursor: default;
   opacity: 0.6;
+}
+
+/* Persistent marker that a run of entries is glued into one blinking chord
+   card in Playalong/Creator. Sits below the marker row (not squeezed between
+   two pills) so it stays visible even when glued entries are packed close
+   enough that their pills touch or overlap. Clickable to unglue. */
+.timeline-glue-badge {
+  position: absolute;
+  top: 58px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.85;
+  cursor: pointer;
+  z-index: 3;
+  user-select: none;
+}
+
+.timeline-glue-badge:hover { opacity: 1; }
+
+.timeline-glue-badge-locked {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .timeline-popover {
