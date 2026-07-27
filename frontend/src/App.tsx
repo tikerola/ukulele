@@ -203,6 +203,8 @@ function PlayalongView({
   timeline,
   sections,
   chordDict,
+  startOffset,
+  endOffset,
   onToCreator,
   onReset,
 }: {
@@ -210,14 +212,29 @@ function PlayalongView({
   timeline: ChordEntry[]
   sections: Section[]
   chordDict: ChordDictionary
+  startOffset?: number
+  endOffset?: number
   onToCreator: () => void
   onReset: () => void
 }) {
   const [soundOn, setSoundOn] = useState(false)
   const [videoHidden, setVideoHidden] = useState(false)
-  const { containerRef, currentTime, isReady } = useYouTubePlayer(videoId)
+  const { containerRef, currentTime, isReady, isPlaying, seekTo, pause } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
   const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime } = useSectionChords(timeline, sections, currentTime)
+
+  // Re-clamps forward whenever playback lands before the start offset —
+  // covers the initial load, but also YouTube's native "replay" button and
+  // manual rewinds, both of which reset currentTime without us knowing.
+  useEffect(() => {
+    if (!isReady || !startOffset) return
+    if (currentTime < startOffset - 0.2) seekTo(startOffset)
+  }, [isReady, currentTime, startOffset, seekTo])
+
+  useEffect(() => {
+    if (endOffset == null || !isPlaying) return
+    if (currentTime >= endOffset) pause()
+  }, [currentTime, endOffset, isPlaying, pause])
 
   const handlePulse = useCallback((chord: string) => {
     if (!soundOn) return
@@ -386,6 +403,8 @@ export default function App() {
         timeline={timeline}
         sections={creatorSnapshot?.sections ?? []}
         chordDict={chordDict}
+        startOffset={creatorSnapshot?.startOffset}
+        endOffset={creatorSnapshot?.endOffset}
         onToCreator={() => setAppState('creator')}
         onReset={handleReset}
       />

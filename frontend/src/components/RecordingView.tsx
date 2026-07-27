@@ -32,6 +32,8 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [soundOn, setSoundOn] = useState(true)
   const [timeline, setTimeline] = useState<ChordEntry[]>(initialSnapshot?.timeline ?? [])
   const [sections, setSections] = useState<Section[]>(initialSnapshot?.sections ?? [])
+  const [startOffset, setStartOffset] = useState<number | undefined>(initialSnapshot?.startOffset)
+  const [endOffset, setEndOffset] = useState<number | undefined>(initialSnapshot?.endOffset)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(!!initialSnapshot?.timeline.length)
   const [past, setPast] = useState<Snapshot[]>([])
@@ -87,10 +89,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       skipNextSaveRef.current = false
       return
     }
-    const t = setTimeout(() => onSnapshotChange({ timeline, sections, reference: referenceText }), 800)
+    const t = setTimeout(() => onSnapshotChange({ timeline, sections, reference: referenceText, startOffset, endOffset }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText])
+  }, [timeline, sections, referenceText, startOffset, endOffset])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -237,6 +239,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             canRedo={future.length > 0}
             onUndo={undo}
             onRedo={redo}
+            startOffset={startOffset}
+            endOffset={endOffset}
+            onStartOffsetChange={setStartOffset}
+            onEndOffsetChange={setEndOffset}
           />
         ) : (
           <div className="timeline-loading">Waiting for video to load…</div>
@@ -245,7 +251,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         <div className="tap-footer">
           <button
             className="btn-primary"
-            onClick={() => onDone(timeline, { timeline, sections, reference: referenceText })}
+            onClick={() => onDone(timeline, { timeline, sections, reference: referenceText, startOffset, endOffset })}
             disabled={timeline.length === 0}
           >
             ▶ Playalong

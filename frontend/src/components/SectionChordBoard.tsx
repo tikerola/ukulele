@@ -141,7 +141,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           <div className="section-chord-next">
             <span className="next-arrow">➤</span>
             <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE * 0.8} />
+              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} />
             </div>
           </div>
         )}

@@ -17,6 +17,10 @@ interface Props {
   canRedo: boolean
   onUndo: () => void
   onRedo: () => void
+  startOffset?: number
+  endOffset?: number
+  onStartOffsetChange: (time: number | undefined) => void
+  onEndOffsetChange: (time: number | undefined) => void
 }
 
 const MIN_PPS = 10
@@ -57,7 +61,7 @@ function pickTickStep(pps: number): number {
   return 60
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
@@ -71,6 +75,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     originalTimes: number[]
     originalSection: Section
   } | null>(null)
+  const [trimDrag, setTrimDrag] = useState<'start' | 'end' | null>(null)
 
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -215,6 +220,40 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const nextSections = [...sections, newSection].sort((a, b) => a.startTime - b.startTime)
     onSectionsChange(nextSections)
     setSelectedSectionIdx(nextSections.indexOf(newSection))
+  }
+
+  function setStartOffsetAt(t: number | undefined) {
+    if (t === undefined) { onStartOffsetChange(undefined); return }
+    const max = endOffset ?? duration
+    onStartOffsetChange(Math.max(0, Math.min(t, max)))
+  }
+
+  function setEndOffsetAt(t: number | undefined) {
+    if (t === undefined) { onEndOffsetChange(undefined); return }
+    const min = startOffset ?? 0
+    onEndOffsetChange(Math.min(duration, Math.max(t, min)))
+  }
+
+  function handleTrimPointerDown(e: React.PointerEvent, which: 'start' | 'end') {
+    e.stopPropagation()
+    if (locked) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setTrimDrag(which)
+    onSelectChange(null)
+    setRangeSel(null)
+    setAnchorIdx(null)
+    setSelectedSectionIdx(null)
+  }
+
+  function handleTrimPointerMove(e: React.PointerEvent) {
+    if (!trimDrag) return
+    const t = timeFromClientX(e.clientX)
+    if (trimDrag === 'start') setStartOffsetAt(t); else setEndOffsetAt(t)
+  }
+
+  function handleTrimPointerUp() {
+    if (!trimDrag) return
+    setTrimDrag(null)
   }
 
   function handleMarkerPointerDown(e: React.PointerEvent, idx: number) {
@@ -397,6 +436,30 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <button className="btn-small" onClick={() => setPps(v => Math.max(MIN_PPS, v - 10))} title="Zoom out">−</button>
             <button className="btn-small" onClick={() => setPps(v => Math.min(MAX_PPS, v + 10))} title="Zoom in">+</button>
           </div>
+          <div className="timeline-zoom">
+            <button
+              className={`btn-small${startOffset != null ? ' btn-small-active' : ''}`}
+              onClick={() => setStartOffsetAt(currentTime)}
+              disabled={locked}
+              title="Set the playback start point to the current position — skips any intro before it in Playalong"
+            >
+              ⏭ Start{startOffset != null ? ` ${formatTime(startOffset)}` : ''}
+            </button>
+            {startOffset != null && (
+              <button className="btn-small" onClick={() => setStartOffsetAt(undefined)} disabled={locked} title="Clear start offset">×</button>
+            )}
+            <button
+              className={`btn-small${endOffset != null ? ' btn-small-active' : ''}`}
+              onClick={() => setEndOffsetAt(currentTime)}
+              disabled={locked}
+              title="Set the playback end point to the current position — skips any outro after it in Playalong"
+            >
+              ⏹ End{endOffset != null ? ` ${formatTime(endOffset)}` : ''}
+            </button>
+            {endOffset != null && (
+              <button className="btn-small" onClick={() => setEndOffsetAt(undefined)} disabled={locked} title="Clear end offset">×</button>
+            )}
+          </div>
           <button className="btn-clear" onClick={handleClearAll} disabled={timeline.length === 0 || locked} title={locked ? 'Unlock to clear the timeline' : 'Clear entire timeline'}>
             Clear all
           </button>
@@ -408,8 +471,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           ref={trackRef}
           style={{ width: trackWidth }}
           onClick={handleTrackClick}
-          onPointerMove={e => { handleMarkerPointerMove(e); handleSectionPointerMove(e) }}
-          onPointerUp={() => { handleMarkerPointerUp(); handleSectionPointerUp() }}
+          onPointerMove={e => { handleMarkerPointerMove(e); handleSectionPointerMove(e); handleTrimPointerMove(e) }}
+          onPointerUp={() => { handleMarkerPointerUp(); handleSectionPointerUp(); handleTrimPointerUp() }}
         >
           <div className="timeline-ruler">
             {ticks.map(t => (
@@ -458,6 +521,32 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           </div>
 
           <div className="timeline-playhead" style={{ left: currentTime * pps }} />
+
+          {!!startOffset && (
+            <div className="timeline-trim-overlay timeline-trim-overlay-start" style={{ left: 0, width: startOffset * pps }} />
+          )}
+          {endOffset != null && (
+            <div
+              className="timeline-trim-overlay timeline-trim-overlay-end"
+              style={{ left: endOffset * pps, width: Math.max(0, trackWidth - endOffset * pps) }}
+            />
+          )}
+          {!!startOffset && (
+            <div
+              className={`timeline-trim-handle timeline-trim-handle-start${locked ? ' timeline-trim-handle-locked' : ''}`}
+              style={{ left: startOffset * pps }}
+              onPointerDown={e => handleTrimPointerDown(e, 'start')}
+              title={`Song starts at ${formatTime(startOffset)}${locked ? '' : ' — drag to adjust'}`}
+            />
+          )}
+          {endOffset != null && (
+            <div
+              className={`timeline-trim-handle timeline-trim-handle-end${locked ? ' timeline-trim-handle-locked' : ''}`}
+              style={{ left: endOffset * pps }}
+              onPointerDown={e => handleTrimPointerDown(e, 'end')}
+              title={`Song ends at ${formatTime(endOffset)}${locked ? '' : ' — drag to adjust'}`}
+            />
+          )}
 
           {timeline.map((entry, idx) => (
             <div

@@ -216,6 +216,8 @@ textarea { resize: vertical; }
 }
 
 .btn-small:hover { border-color: var(--primary); }
+.btn-small:disabled { opacity: 0.4; cursor: default; }
+.btn-small-active { background: rgba(88, 166, 255, 0.15); border-color: var(--primary); }
 
 .btn-delete {
   background: none;
@@ -493,7 +495,7 @@ textarea { resize: vertical; }
   position: absolute;
   inset: 0;
   background: #ffd700;
-  transform-origin: left center;
+  transform-origin: right center;
   transform: scaleX(1);
 }
 
@@ -974,6 +976,47 @@ kbd {
 .timeline-marker-in-range {
   border-color: #ffd700;
   box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.25);
+}
+
+.timeline-trim-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.timeline-trim-handle {
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  width: 6px;
+  transform: translateX(-3px);
+  background: rgba(248, 81, 73, 0.85);
+  cursor: ew-resize;
+  z-index: 4;
+  touch-action: none;
+}
+
+.timeline-trim-handle::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid rgba(248, 81, 73, 0.85);
+}
+
+.timeline-trim-handle:hover { background: #f85149; }
+
+.timeline-trim-handle-locked {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .timeline-popover {

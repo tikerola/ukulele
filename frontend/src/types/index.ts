@@ -23,6 +23,8 @@ export interface CreatorSnapshot {
   timeline: ChordEntry[]
   sections?: Section[]
   reference?: string
+  startOffset?: number
+  endOffset?: number
 }
 
 export interface SavedSong {

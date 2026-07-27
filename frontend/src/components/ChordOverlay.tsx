@@ -68,7 +68,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
           <div className="chord-next-preview">
             <span className="next-arrow">➤</span>
             <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE * 0.8} />
+              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} />
             </div>
           </div>
         )}
