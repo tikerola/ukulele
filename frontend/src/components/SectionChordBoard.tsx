@@ -14,6 +14,7 @@ interface Props {
   currentTime: number
   chordDict: ChordDictionary
   onPulse?: (chord: string) => void
+  showNextPreview?: boolean
 }
 
 const CHORD_SIZE = 1.2
@@ -30,7 +31,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true }: Props) {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
@@ -128,7 +129,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           ref={el => { indices.forEach(i => { itemRefs.current[i] = el }) }}
           className={`chord-row-item${indices.includes(activeIdx) ? ' chord-row-item-active' : ''}`}
         >
-          <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} />
+          <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
           <div className="chord-progress-track">
             <div className="chord-progress-fill" data-progress-fill />
             <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
@@ -148,11 +149,11 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
         {rowGroups.map((group, r) => (
           <div className="section-chord-line" key={r}>{group}</div>
         ))}
-        {activeIdx === entries.length - 1 && nextChord && (
+        {showNextPreview && activeIdx === entries.length - 1 && nextChord && (
           <div className="section-chord-next">
             <span className="next-arrow">➤</span>
             <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} />
+              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
             </div>
           </div>
         )}

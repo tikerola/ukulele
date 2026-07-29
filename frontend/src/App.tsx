@@ -205,6 +205,8 @@ function PlayalongView({
   chordDict,
   startOffset,
   endOffset,
+  showNextChordPreview,
+  onShowNextChordPreviewChange,
   onToCreator,
   onReset,
 }: {
@@ -214,6 +216,8 @@ function PlayalongView({
   chordDict: ChordDictionary
   startOffset?: number
   endOffset?: number
+  showNextChordPreview: boolean
+  onShowNextChordPreviewChange: (value: boolean) => void
   onToCreator: () => void
   onReset: () => void
 }) {
@@ -266,6 +270,13 @@ function PlayalongView({
           >
             {soundOn ? '🔊' : '🔇'}
           </button>
+          <button
+            className={`btn-ghost${showNextChordPreview ? ' btn-ghost-active' : ''}`}
+            onClick={() => onShowNextChordPreviewChange(!showNextChordPreview)}
+            title={showNextChordPreview ? 'Hide the blinking next-chord preview' : 'Show the blinking next-chord preview'}
+          >
+            {showNextChordPreview ? '👁 Next chord' : '🙈 Next chord'}
+          </button>
           <button className="btn-ghost" onClick={onToCreator}>← Creator</button>
           <button className="btn-ghost" onClick={onReset}>New song</button>
         </div>
@@ -288,6 +299,7 @@ function PlayalongView({
               currentTime={currentTime}
               chordDict={chordDict}
               onPulse={handlePulse}
+              showNextPreview={showNextChordPreview}
             />
           ) : (
             <ChordOverlay
@@ -295,6 +307,7 @@ function PlayalongView({
               currentTime={currentTime}
               chordDict={chordDict}
               onPulse={handlePulse}
+              showNextPreview={showNextChordPreview}
             />
           )}
         </div>
@@ -372,6 +385,14 @@ export default function App() {
     saveSnapshot(snapshot)
   }
 
+  const setShowNextChordPreview = useCallback((value: boolean) => {
+    setCreatorSnapshot(prev => {
+      const next: CreatorSnapshot = { timeline, ...prev, showNextChordPreview: value }
+      saveSnapshot(next)
+      return next
+    })
+  }, [saveSnapshot, timeline])
+
   function handleReset() {
     setAppState('input')
     setVideoId(null)
@@ -405,6 +426,8 @@ export default function App() {
         chordDict={chordDict}
         startOffset={creatorSnapshot?.startOffset}
         endOffset={creatorSnapshot?.endOffset}
+        showNextChordPreview={creatorSnapshot?.showNextChordPreview ?? true}
+        onShowNextChordPreviewChange={setShowNextChordPreview}
         onToCreator={() => setAppState('creator')}
         onReset={handleReset}
       />

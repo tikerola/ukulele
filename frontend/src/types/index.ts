@@ -31,6 +31,8 @@ export interface CreatorSnapshot {
   reference?: string
   startOffset?: number
   endOffset?: number
+  locked?: boolean
+  showNextChordPreview?: boolean
 }
 
 export interface SavedSong {

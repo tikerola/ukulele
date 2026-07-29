@@ -9,11 +9,12 @@ interface Props {
   currentTime: number
   chordDict: ChordDictionary
   onPulse?: (chord: string) => void
+  showNextPreview?: boolean
 }
 
 const CHORD_SIZE = 1.3
 
-export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Props) {
+export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true }: Props) {
   const { currentIdx, batchGroups, activeGroupIdxInBatch, activeChordEndTime, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
@@ -65,7 +66,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
                 ref={el => { itemRefs.current[i] = el }}
                 className={`chord-row-item${i === activeGroupIdxInBatch ? ' chord-row-item-active' : ''}`}
               >
-                <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} accentHeight={13.3} />
+                <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
                 <div className="chord-progress-track">
                   <div className="chord-progress-fill" data-progress-fill />
                   <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
@@ -74,11 +75,11 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse }: Prop
             )
           })}
         </div>
-        {isLastInBatch && nextChord && (
+        {showNextPreview && isLastInBatch && nextChord && (
           <div className="chord-next-preview">
             <span className="next-arrow">➤</span>
             <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} />
+              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
             </div>
           </div>
         )}

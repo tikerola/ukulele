@@ -35,7 +35,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [startOffset, setStartOffset] = useState<number | undefined>(initialSnapshot?.startOffset)
   const [endOffset, setEndOffset] = useState<number | undefined>(initialSnapshot?.endOffset)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
-  const [locked, setLocked] = useState(!!initialSnapshot?.timeline.length)
+  const [locked, setLocked] = useState(initialSnapshot?.locked ?? !!initialSnapshot?.timeline.length)
   const [past, setPast] = useState<Snapshot[]>([])
   const [future, setFuture] = useState<Snapshot[]>([])
 
@@ -89,10 +89,13 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       skipNextSaveRef.current = false
       return
     }
-    const t = setTimeout(() => onSnapshotChange({ timeline, sections, reference: referenceText, startOffset, endOffset }), 800)
+    const t = setTimeout(() => onSnapshotChange({
+      timeline, sections, reference: referenceText, startOffset, endOffset, locked,
+      showNextChordPreview: initialSnapshot?.showNextChordPreview,
+    }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText, startOffset, endOffset])
+  }, [timeline, sections, referenceText, startOffset, endOffset, locked])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -251,7 +254,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         <div className="tap-footer">
           <button
             className="btn-primary"
-            onClick={() => onDone(timeline, { timeline, sections, reference: referenceText, startOffset, endOffset })}
+            onClick={() => onDone(timeline, {
+              timeline, sections, reference: referenceText, startOffset, endOffset, locked,
+              showNextChordPreview: initialSnapshot?.showNextChordPreview,
+            })}
             disabled={timeline.length === 0}
           >
             ▶ Playalong
