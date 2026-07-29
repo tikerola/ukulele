@@ -1,4 +1,6 @@
+import { useId } from 'react'
 import type { ChordData } from '../types'
+import { getChordColor } from '../lib/chordColors'
 
 interface Props {
   chord: string
@@ -21,10 +23,17 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
   const fretY = (f: number) => nutY + fretH * f
   const topY = 10
 
+  const color = getChordColor(chord)
+  const clipId = `chord-card-${useId().replace(/:/g, '')}`
+
   if (!data) {
     return (
       <svg width={W} height={H} viewBox={`0 0 ${vW} ${vH}`}>
+        <defs>
+          <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
+        </defs>
         <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
+        <rect x={1} y={1} width={vW - 2} height={10} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
         <text x={vW / 2} y={vH / 2 + 5} textAnchor="middle" fill="#666" fontSize={14}>?</text>
         <text x={vW / 2} y={vH - 8} textAnchor="middle" fill="#7d8590" fontSize={9}>{chord}</text>
       </svg>
@@ -39,7 +48,11 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${vW} ${vH}`}>
+      <defs>
+        <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
+      </defs>
       <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
+      <rect x={1} y={1} width={vW - 2} height={10} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
 
       {/* Nut */}
       {offset === 0
