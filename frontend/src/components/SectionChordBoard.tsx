@@ -15,6 +15,7 @@ interface Props {
   chordDict: ChordDictionary
   onPulse?: (chord: string) => void
   showNextPreview?: boolean
+  isLastChordActive: boolean
 }
 
 const CHORD_SIZE = 1.2
@@ -31,7 +32,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive }: Props) {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
@@ -149,7 +150,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
         {rowGroups.map((group, r) => (
           <div className="section-chord-line" key={r}>{group}</div>
         ))}
-        {showNextPreview && activeIdx === entries.length - 1 && nextChord && (
+        {showNextPreview && isLastChordActive && nextChord && (
           <div className="section-chord-next">
             <span className="next-arrow">➤</span>
             <div className="chord-row-item chord-next-preview-item">

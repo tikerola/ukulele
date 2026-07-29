@@ -240,6 +240,50 @@ textarea { resize: vertical; }
   background: var(--border);
 }
 
+.fill-beats-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fill-beats-input {
+  width: 34px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.fill-beats-chips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fill-beat-chip {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.fill-beat-chip:disabled { cursor: default; }
+
+.fill-beat-chip-on {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(88, 166, 255, 0.12);
+  opacity: 1;
+}
+
 .btn-delete {
   background: none;
   border: none;
@@ -1040,6 +1084,38 @@ kbd {
   opacity: 0.6;
 }
 
+/* Bracket line spanning every marker in a glued run, so it's clear at a
+   glance which pills the 🔗 badge actually covers — end-cap ticks (::before/
+   ::after) mark exactly where the glued span starts and ends. Sits below the
+   marker row, same as the badge, so it never crosses through a pill. */
+.timeline-glue-line {
+  position: absolute;
+  top: 64px;
+  height: 2px;
+  background: rgba(88, 166, 255, 0.4);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.timeline-glue-line::before,
+.timeline-glue-line::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 10px;
+  background: rgba(88, 166, 255, 0.4);
+}
+
+.timeline-glue-line::before { left: 0; }
+.timeline-glue-line::after { right: 0; }
+
+.timeline-glue-line-locked,
+.timeline-glue-line-locked::before,
+.timeline-glue-line-locked::after {
+  background: rgba(125, 133, 144, 0.35);
+}
+
 /* Persistent marker that a run of entries is glued into one blinking chord
    card in Playalong/Creator. Sits below the marker row (not squeezed between
    two pills) so it stays visible even when glued entries are packed close
@@ -1066,6 +1142,7 @@ kbd {
 .timeline-popover {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 14px;
   border-top: 1px solid var(--border);

@@ -77,6 +77,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     originalSection: Section
   } | null>(null)
   const [trimDrag, setTrimDrag] = useState<'start' | 'end' | null>(null)
+  const [fillBeats, setFillBeats] = useState(4)
+  const [fillSkip, setFillSkip] = useState<Set<number>>(new Set())
 
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -89,6 +91,12 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   useEffect(() => {
     if (locked) setSelectedSectionIdx(null)
   }, [locked])
+
+  // A fresh selection starts with every beat enabled — skip choices from
+  // filling a previous entry shouldn't silently carry over to this one.
+  useEffect(() => {
+    setFillSkip(new Set())
+  }, [selectedIdx])
 
   useLayoutEffect(() => {
     const trackEl = trackRef.current
@@ -361,6 +369,45 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onChange(timeline.map((entry, i) => rest.has(i) ? { ...entry, tied: false } : entry))
   }
 
+  function toggleFillBeat(i: number) {
+    setFillSkip(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
+  }
+
+  // Divides the gap between `idx` and the next entry into `fillBeats` equal
+  // beats and taps the same chord onto every one of them that isn't skipped
+  // — everything after the first is glued (`tied: true`) so it shares one
+  // blinking card with the original tap instead of drawing a card each.
+  function fillToNextChord(idx: number) {
+    if (locked) return
+    const start = timeline[idx]
+    const next = timeline[idx + 1]
+    if (!start || !next || fillBeats < 2) return
+    const step = (next.time - start.time) / fillBeats
+    const newEntries: ChordEntry[] = []
+    for (let b = 1; b < fillBeats; b++) {
+      if (fillSkip.has(b)) continue
+      newEntries.push({ time: start.time + step * b, chord: start.chord, tied: true })
+    }
+    if (newEntries.length === 0) return
+    onBeginEdit()
+    commitTimeline([...timeline, ...newEntries])
+    setFillSkip(new Set())
+  }
+
+  // Deletes every entry a glued run added after its anchor (the anchor
+  // itself keeps its index afterward, since everything removed sits after
+  // it) — undoes a fill (or a manual multi-glue) back down to a single tap.
+  function removeFill(group: number[]) {
+    if (locked) return
+    onBeginEdit()
+    const toRemove = new Set(group.slice(1))
+    commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
+  }
+
   function rangeGlueInfo(lo: number, hi: number): { eligible: boolean; fullyGlued: boolean } {
     if (hi <= lo) return { eligible: false, fullyGlued: false }
     const sameChord = timeline.slice(lo, hi + 1).every(e => e.chord === timeline[lo].chord)
@@ -467,6 +514,10 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // under its markers regardless of how close together they are (unlike a
   // connecting line, which has nowhere to go once adjacent pills touch).
   const glueGroups = useMemo(() => buildChordGroups(timeline).filter(g => g.length > 1), [timeline])
+
+  // The selected entry already has a glued run following it (from a fill or
+  // a manual multi-glue) — offer removing that run instead of filling again.
+  const selectedFillGroup = selectedIdx !== null ? glueGroups.find(g => g[0] === selectedIdx) : undefined
 
   return (
     <div className="timeline-wrapper">
@@ -596,18 +647,23 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           {glueGroups.map(indices => {
             const first = markerRects[indices[0]]
             const last = markerRects[indices[indices.length - 1]]
-            const center = first && last
-              ? (first.left + last.right) / 2
-              : (timeline[indices[0]].time + timeline[indices[indices.length - 1]].time) / 2 * pps
+            const left = first ? first.left : timeline[indices[0]].time * pps
+            const right = last ? last.right : timeline[indices[indices.length - 1]].time * pps
+            const center = (left + right) / 2
             return (
-              <div
-                key={`glue-${indices[0]}`}
-                className={`timeline-glue-badge${locked ? ' timeline-glue-badge-locked' : ''}`}
-                style={{ left: center }}
-                onClick={e => { e.stopPropagation(); removeGlueGroup(indices) }}
-                title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to unglue`}
-              >
-                🔗
+              <div key={`glue-${indices[0]}`}>
+                <div
+                  className={`timeline-glue-line${locked ? ' timeline-glue-line-locked' : ''}`}
+                  style={{ left, width: Math.max(2, right - left) }}
+                />
+                <div
+                  className={`timeline-glue-badge${locked ? ' timeline-glue-badge-locked' : ''}`}
+                  style={{ left: center }}
+                  onClick={e => { e.stopPropagation(); removeGlueGroup(indices) }}
+                  title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to unglue`}
+                >
+                  🔗
+                </div>
               </div>
             )
           })}
@@ -675,6 +731,53 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               >
                 {timeline[selectedIdx].tied ? '🔓 Unglue' : '🔗 Glue to previous'}
               </button>
+            )}
+            {selectedFillGroup ? (
+              <>
+                <span className="popover-divider" />
+                <button
+                  className="btn-delete"
+                  onClick={() => removeFill(selectedFillGroup)}
+                  title="Delete the auto-filled beats and go back to a single tap"
+                >
+                  🗑 Remove fill ({selectedFillGroup.length - 1})
+                </button>
+              </>
+            ) : selectedIdx < timeline.length - 1 && (
+              <>
+                <span className="popover-divider" />
+                <div className="fill-beats-control">
+                  <span className="timeline-popover-hint">
+                    Fill to {timeline[selectedIdx + 1].chord} @ {formatTime(timeline[selectedIdx + 1].time)} ·
+                  </span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={16}
+                    value={fillBeats}
+                    onChange={e => setFillBeats(Math.max(2, Math.min(16, parseInt(e.target.value) || 2)))}
+                    className="fill-beats-input"
+                    title="How many equal beats to divide this gap into"
+                  />
+                  <div className="fill-beats-chips">
+                    {Array.from({ length: fillBeats }, (_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`fill-beat-chip${i === 0 || !fillSkip.has(i) ? ' fill-beat-chip-on' : ''}`}
+                        disabled={i === 0}
+                        onClick={() => toggleFillBeat(i)}
+                        title={i === 0 ? `Beat 1 — this tap` : `Beat ${i + 1}${fillSkip.has(i) ? ' — off' : ' — on'}`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="btn-glue" onClick={() => fillToNextChord(selectedIdx)} title="Tap this chord onto every enabled beat up to the next chord">
+                    ⚡ Fill beats
+                  </button>
+                </div>
+              </>
             )}
             <button className="btn-delete" onClick={() => deleteEntry(selectedIdx)}>× Delete</button>
           </>

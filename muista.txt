@@ -1,0 +1,1 @@
+When I glue four chords and this glued chord is the last chord of the section, the preview chord for next section starts blinking only when the fourth beat of the chord plays. Next chord should start blinking with glued chords like non glued chords so in beat one.

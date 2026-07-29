@@ -51,11 +51,12 @@ export function useChordSync(timeline: ChordEntry[], currentTime: number) {
 
     const nextEntry = currentIdx + 1 < timeline.length ? timeline[currentIdx + 1] : null
 
-    // True only on the last beat of the last group in the batch — i.e. the
-    // moment the whole visible row is about to swap out — not on every beat
-    // of a glued run that happens to occupy the last slot.
+    // True for every beat of the last group in the batch — a glued run is
+    // one card, so its preview should appear as soon as that card becomes
+    // active, the same as it would for an unglued last chord (which only
+    // ever has one beat to begin with) — not wait for its final beat.
     const lastGroupInBatch = batchGroups[batchGroups.length - 1]
-    const isLastInBatch = !!lastGroupInBatch && currentIdx === lastGroupInBatch[lastGroupInBatch.length - 1]
+    const isLastInBatch = !!lastGroupInBatch && lastGroupInBatch.includes(currentIdx)
 
     return {
       currentIdx,
@@ -119,6 +120,7 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
         nextSection: null as Section | null,
         nextChord: null as string | null,
         activeChordEndTime: null as number | null,
+        isLastChordActive: false,
       }
     }
 
@@ -144,6 +146,12 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
         ? entries[groupLastIdx + 1].time
         : (window.activeUntil === Infinity ? null : window.activeUntil)
 
+    // True for every beat of the section's last group — a glued run is one
+    // card, so the next-section preview should appear as soon as that card
+    // becomes active, the same as it would for an unglued last chord (which
+    // only ever has one beat to begin with) — not wait for its final beat.
+    const isLastChordActive = !!activeGroup && activeGroup === groups[groups.length - 1]
+
     return {
       section,
       entries,
@@ -151,6 +159,7 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
       nextSection: sorted[sectionIdx + 1] ?? null,
       nextChord: nextEntry?.chord ?? null,
       activeChordEndTime,
+      isLastChordActive,
     }
   }, [timeline, sections, currentTime])
 }

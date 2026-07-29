@@ -225,7 +225,7 @@ function PlayalongView({
   const [videoHidden, setVideoHidden] = useState(false)
   const { containerRef, currentTime, isReady, isPlaying, seekTo, pause } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
-  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime } = useSectionChords(timeline, sections, currentTime)
+  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, isLastChordActive } = useSectionChords(timeline, sections, currentTime)
 
   // Re-clamps forward whenever playback lands before the start offset —
   // covers the initial load, but also YouTube's native "replay" button and
@@ -300,6 +300,7 @@ function PlayalongView({
               chordDict={chordDict}
               onPulse={handlePulse}
               showNextPreview={showNextChordPreview}
+              isLastChordActive={isLastChordActive}
             />
           ) : (
             <ChordOverlay
