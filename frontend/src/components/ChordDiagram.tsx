@@ -6,12 +6,13 @@ interface Props {
   chord: string
   data: ChordData | null
   size?: number
+  accentHeight?: number
 }
 
 const STRINGS = 4
 const FRETS_SHOWN = 4
 
-export function ChordDiagram({ chord, data, size = 1 }: Props) {
+export function ChordDiagram({ chord, data, size = 1, accentHeight = 10 }: Props) {
   const W = 90 * size
   const H = 115 * size
   const vW = 90
@@ -33,7 +34,7 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
           <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
         </defs>
         <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
-        <rect x={1} y={1} width={vW - 2} height={10} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
+        <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
         <text x={vW / 2} y={vH / 2 + 5} textAnchor="middle" fill="#666" fontSize={14}>?</text>
         <text x={vW / 2} y={vH - 8} textAnchor="middle" fill="#7d8590" fontSize={9}>{chord}</text>
       </svg>
@@ -52,7 +53,7 @@ export function ChordDiagram({ chord, data, size = 1 }: Props) {
         <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
       </defs>
       <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
-      <rect x={1} y={1} width={vW - 2} height={10} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
+      <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
 
       {/* Nut */}
       {offset === 0
