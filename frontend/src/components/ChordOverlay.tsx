@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { useChordSync } from '../hooks/useChordSync'
 import { restartChordProgress } from '../lib/chordProgress'
+import { computeBeatDots } from '../lib/beatDots'
 import type { ChordEntry, ChordDictionary } from '../types'
 
 interface Props {
@@ -60,6 +61,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
         <div className="chord-row">
           {batchGroups.map((indices, i) => {
             const anchor = timeline[indices[0]]
+            const dots = computeBeatDots(timeline, indices)
             return (
               <div
                 key={indices[0]}
@@ -70,6 +72,11 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
                 <div className="chord-progress-track">
                   <div className="chord-progress-fill" data-progress-fill />
                   <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
+                </div>
+                <div className="beat-dots">
+                  {dots.map((state, di) => (
+                    <span key={di} className={`beat-dot beat-dot-${state}`} />
+                  ))}
                 </div>
               </div>
             )

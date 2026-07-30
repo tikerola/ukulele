@@ -535,6 +535,20 @@ textarea { resize: vertical; }
   box-shadow: 0 0 0 3px rgba(255, 200, 0, 0.2), 0 0 16px rgba(255, 200, 0, 0.1);
 }
 
+/* ─── Count-in banner ─────────────────────────────────────── */
+/* Shown before playback reaches the first chord's time, so the player knows
+   how long they have before they need to start strumming. */
+
+.count-in-banner {
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.08);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.25);
+}
+
 /* ─── Chord progress bar ──────────────────────────────────── */
 /* Counts down the active chord's remaining time. Always present (so the row
    doesn't reflow when a card becomes active) but only visible on the active
@@ -595,6 +609,35 @@ textarea { resize: vertical; }
     animation: none;
     transform: scaleX(0.4);
   }
+}
+
+/* ─── Beat-hit dots ───────────────────────────────────────── */
+/* Four dots per chord card showing how many beats that chord's glued group
+   spans — how many times it blinks before the next chord change. A single
+   untied chord lights only the first dot; four beats glued together light
+   all four. Every beat in the group is equivalent, so every lit dot looks
+   the same — there's no separate "glued" color. */
+
+.beat-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.beat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.beat-dot-lit {
+  background: #ffd700;
+}
+
+.beat-dot-empty {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* ─── Small-screen playalong adjustments ──────────────────── */

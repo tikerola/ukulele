@@ -248,6 +248,9 @@ function PlayalongView({
 
   const videoClass = `yt-wrapper yt-wrapper-fixed${videoHidden ? ' yt-wrapper-hidden' : ''}`
 
+  const firstChordTime = timeline[0]?.time ?? null
+  const showCountIn = firstChordTime !== null && currentTime < firstChordTime
+
   return (
     <div className="player-screen">
       <header className="app-header app-header-compact">
@@ -281,6 +284,10 @@ function PlayalongView({
           <button className="btn-ghost" onClick={onReset}>New song</button>
         </div>
       </header>
+
+      {showCountIn && (
+        <div className="count-in-banner">First chord in {(firstChordTime! - currentTime).toFixed(1)}s</div>
+      )}
 
       <div className="player-layout">
         <div className="player-left">
@@ -350,18 +357,29 @@ export default function App() {
     if (!vid) { setError('Could not extract video ID from URL'); return }
     setError(null)
     setIsLoading(true)
+    let snapshot: CreatorSnapshot | undefined
     try {
       const res = await fetch(`${API}/songs/${vid}`)
       if (res.ok) {
         const saved = await res.json()
-        if (saved.snapshot) setCreatorSnapshot(saved.snapshot)
+        if (saved.snapshot) {
+          snapshot = saved.snapshot
+          setCreatorSnapshot(saved.snapshot)
+        }
       }
     } catch {
       // proceed without saved data
     }
     setVideoId(vid)
     setChords(songChords)
-    setAppState('creator')
+    // A locked song's chord chart is considered finished — skip straight to
+    // Playalong instead of making the user click through Creator each time.
+    if (snapshot?.locked) {
+      setTimeline(snapshot.timeline)
+      setAppState('playalong')
+    } else {
+      setAppState('creator')
+    }
     setIsLoading(false)
   }
 

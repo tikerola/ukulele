@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { restartChordProgress } from '../lib/chordProgress'
 import { buildChordGroups } from '../lib/chordGroups'
+import { computeBeatDots } from '../lib/beatDots'
 import type { ChordEntry, ChordDictionary, Section } from '../types'
 
 interface Props {
@@ -124,6 +125,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
     cursor += count
     return displayGroups.slice(start, start + count).map(indices => {
       const anchor = entries[indices[0]]
+      const dots = computeBeatDots(entries, indices)
       return (
         <div
           key={indices[0]}
@@ -134,6 +136,11 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           <div className="chord-progress-track">
             <div className="chord-progress-fill" data-progress-fill />
             <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
+          </div>
+          <div className="beat-dots">
+            {dots.map((state, di) => (
+              <span key={di} className={`beat-dot beat-dot-${state}`} />
+            ))}
           </div>
         </div>
       )

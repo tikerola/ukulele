@@ -68,7 +68,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
   const [rangeSel, setRangeSel] = useState<[number, number] | null>(null)
   const [sectionName, setSectionName] = useState('')
-  const [selectedSectionIdx, setSelectedSectionIdx] = useState<number | null>(null)
+  const [selectedSectionIdxs, setSelectedSectionIdxs] = useState<number[]>([])
   const [sectionDrag, setSectionDrag] = useState<{
     idx: number
     startClientX: number
@@ -89,7 +89,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   const trackWidth = Math.max(duration * pps, 200)
 
   useEffect(() => {
-    if (locked) setSelectedSectionIdx(null)
+    if (locked) setSelectedSectionIdxs([])
   }, [locked])
 
   // A fresh selection starts with every beat enabled — skip choices from
@@ -138,13 +138,18 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
+  }
+
+  function deleteSections(idxs: number[]) {
+    onBeginEdit()
+    const idxSet = new Set(idxs)
+    onSectionsChange(sections.filter((_, si) => !idxSet.has(si)))
+    setSelectedSectionIdxs([])
   }
 
   function deleteSection(idx: number) {
-    onBeginEdit()
-    onSectionsChange(sections.filter((_, si) => si !== idx))
-    setSelectedSectionIdx(null)
+    deleteSections([idx])
   }
 
   // Only counts an entry as belonging to this section if no *other* section's
@@ -179,7 +184,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(idx)
+    setSelectedSectionIdxs([idx])
   }
 
   function handleSectionPointerMove(e: React.PointerEvent) {
@@ -206,29 +211,41 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setSectionDrag(null)
   }
 
-  // Duplicates a section's chords after the end of the whole timeline (not
-  // just after itself, which could land the copy on top of whatever section
-  // already follows it) and selects the copy so it can be dragged elsewhere.
-  function duplicateSection(idx: number) {
-    if (locked) return
-    const section = sections[idx]
-    const entries = sectionEntryIndices(section).map(i => timeline[i])
-    if (entries.length === 0) return
+  // Duplicates one or more sections' chords after the end of the whole
+  // timeline (not just after themselves, which could land a copy on top of
+  // whatever section already follows it), then selects the copies so they
+  // can be dragged elsewhere. All selected sections shift by the *same*
+  // offset — anchored off the earliest selected section's startTime — so
+  // the gaps between the originals are preserved between the duplicates.
+  function duplicateSections(idxs: number[]) {
+    if (locked || idxs.length === 0) return
+    const selected = [...idxs].map(i => sections[i]).sort((a, b) => a.startTime - b.startTime)
+    const earliestStart = selected[0].startTime
+
+    const perSection = selected
+      .map(section => ({ section, entries: sectionEntryIndices(section).map(i => timeline[i]) }))
+      .filter(x => x.entries.length > 0)
+    if (perSection.length === 0) return
 
     onBeginEdit()
     const lastTime = Math.max(...timeline.map(e => e.time))
-    const offset = lastTime + 1 - section.startTime
-    const newEntries = entries.map(e => ({ ...e, time: Math.min(duration, e.time + offset) }))
-    const newSection: Section = {
-      name: section.name,
-      startTime: Math.min(duration, section.startTime + offset),
-      endTime: Math.min(duration, section.endTime + offset),
-    }
+    const offset = lastTime + 1 - earliestStart
+
+    const newEntries: ChordEntry[] = []
+    const newSections: Section[] = []
+    perSection.forEach(({ section, entries }) => {
+      entries.forEach(e => newEntries.push({ ...e, time: Math.min(duration, e.time + offset) }))
+      newSections.push({
+        name: section.name,
+        startTime: Math.min(duration, section.startTime + offset),
+        endTime: Math.min(duration, section.endTime + offset),
+      })
+    })
 
     commitTimeline([...timeline, ...newEntries])
-    const nextSections = [...sections, newSection].sort((a, b) => a.startTime - b.startTime)
+    const nextSections = [...sections, ...newSections].sort((a, b) => a.startTime - b.startTime)
     onSectionsChange(nextSections)
-    setSelectedSectionIdx(nextSections.indexOf(newSection))
+    setSelectedSectionIdxs(newSections.map(ns => nextSections.indexOf(ns)))
   }
 
   function setStartOffsetAt(t: number | undefined) {
@@ -251,7 +268,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
   }
 
   function handleTrimPointerMove(e: React.PointerEvent) {
@@ -274,7 +291,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(idx)
     setAnchorIdx(idx)
     setRangeSel(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
   }
 
   function handleMarkerClick(e: React.MouseEvent, idx: number) {
@@ -284,7 +301,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const anchor = anchorIdx ?? idx
     const [lo, hi] = anchor <= idx ? [anchor, idx] : [idx, anchor]
     setAnchorIdx(anchor)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
     if (lo === hi) {
       onSelectChange(lo)
       setRangeSel(null)
@@ -300,7 +317,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(idx)
+    if (e.shiftKey) {
+      setSelectedSectionIdxs(prev => prev.includes(idx)
+        ? prev.filter(i => i !== idx)
+        : [...prev, idx].sort((a, b) => a - b))
+    } else {
+      setSelectedSectionIdxs([idx])
+    }
   }
 
   function applySection(name: string) {
@@ -337,38 +360,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
   }
 
-  // A marker can glue to its immediate predecessor only when they share the
-  // same chord — gluing across a chord change wouldn't make sense (there'd
-  // be nothing to blink together).
-  function canGlueToPrevious(idx: number): boolean {
-    return idx > 0 && timeline[idx - 1].chord === timeline[idx].chord
-  }
-
-  function toggleGlue(idx: number) {
-    if (locked || !canGlueToPrevious(idx)) return
-    onBeginEdit()
-    onChange(timeline.map((entry, i) => i === idx ? { ...entry, tied: !entry.tied } : entry))
-  }
-
-  // Applied to a contiguous, same-chord range selection — glues (or
-  // unglues, if already fully glued) every entry after the first into one
-  // shared card.
-  function setGlueRange(lo: number, hi: number, tied: boolean) {
-    if (locked) return
-    onBeginEdit()
-    onChange(timeline.map((entry, i) => (i > lo && i <= hi) ? { ...entry, tied } : entry))
-  }
-
-  // Ungludes an entire glued run in one step — used by clicking its
-  // persistent chain badge, so breaking a glue doesn't require re-doing the
-  // shift-click range selection that created it.
-  function removeGlueGroup(indices: number[]) {
-    if (locked) return
-    onBeginEdit()
-    const rest = new Set(indices.slice(1))
-    onChange(timeline.map((entry, i) => rest.has(i) ? { ...entry, tied: false } : entry))
-  }
-
   function toggleFillBeat(i: number) {
     setFillSkip(prev => {
       const next = new Set(prev)
@@ -381,6 +372,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // beats and taps the same chord onto every one of them that isn't skipped
   // — everything after the first is glued (`tied: true`) so it shares one
   // blinking card with the original tap instead of drawing a card each.
+  // Each created beat also records its own quarter (0-3, scaled onto a
+  // nominal 4-beat bar when fillBeats isn't 4) so the beat-dots always know
+  // exactly which position it represents, with no timing math involved.
   function fillToNextChord(idx: number) {
     if (locked) return
     const start = timeline[idx]
@@ -390,7 +384,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const newEntries: ChordEntry[] = []
     for (let b = 1; b < fillBeats; b++) {
       if (fillSkip.has(b)) continue
-      newEntries.push({ time: start.time + step * b, chord: start.chord, tied: true })
+      const beatSlot = Math.min(3, Math.round((b / fillBeats) * 4))
+      newEntries.push({ time: start.time + step * b, chord: start.chord, tied: true, beatSlot })
     }
     if (newEntries.length === 0) return
     onBeginEdit()
@@ -398,21 +393,14 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setFillSkip(new Set())
   }
 
-  // Deletes every entry a glued run added after its anchor (the anchor
-  // itself keeps its index afterward, since everything removed sits after
-  // it) — undoes a fill (or a manual multi-glue) back down to a single tap.
+  // Deletes every entry a fill added after its anchor (the anchor itself
+  // keeps its index afterward, since everything removed sits after it) —
+  // undoes a fill back down to a single tap.
   function removeFill(group: number[]) {
     if (locked) return
     onBeginEdit()
     const toRemove = new Set(group.slice(1))
     commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
-  }
-
-  function rangeGlueInfo(lo: number, hi: number): { eligible: boolean; fullyGlued: boolean } {
-    if (hi <= lo) return { eligible: false, fullyGlued: false }
-    const sameChord = timeline.slice(lo, hi + 1).every(e => e.chord === timeline[lo].chord)
-    const fullyGlued = sameChord && timeline.slice(lo + 1, hi + 1).every(e => e.tied)
-    return { eligible: sameChord, fullyGlued }
   }
 
   function deleteRange(range: [number, number]) {
@@ -433,14 +421,14 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onChange([])
     onSectionsChange([])
     onSelectChange(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
   }
 
   function handleUndo() {
     if (locked || !canUndo) return
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
     onUndo()
   }
 
@@ -448,7 +436,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (locked || !canRedo) return
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdx(null)
+    setSelectedSectionIdxs([])
     onRedo()
   }
 
@@ -470,11 +458,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       if (e.key === 'Escape') {
         setRangeSel(null)
         setAnchorIdx(null)
-        setSelectedSectionIdx(null)
+        setSelectedSectionIdxs([])
         return
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSectionIdx !== null) {
-        deleteSection(selectedSectionIdx)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSectionIdxs.length > 0) {
+        deleteSections(selectedSectionIdxs)
         return
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && rangeSel !== null) {
@@ -488,7 +476,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, timeline, locked, selectedSectionIdx, sections, rangeSel, canUndo, canRedo])
+  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo])
 
   const currentSecond = Math.floor(currentTime)
   useEffect(() => {
@@ -582,7 +570,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               return (
                 <div
                   key={i}
-                  className={`timeline-section-band${selectedSectionIdx === i ? ' timeline-section-band-selected' : ''}${locked ? ' timeline-section-band-locked' : ''}`}
+                  className={`timeline-section-band${selectedSectionIdxs.includes(i) ? ' timeline-section-band-selected' : ''}${locked ? ' timeline-section-band-locked' : ''}`}
                   style={{
                     left,
                     width,
@@ -591,7 +579,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   }}
                   onClick={e => handleSectionClick(e, i)}
                   onPointerDown={e => handleSectionPointerDown(e, i)}
-                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${locked ? '' : ' — drag to move, click to select'}`}
+                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${locked ? '' : ' — drag to move, click to select, shift+click to select multiple'}`}
                 >
                   <span className="timeline-section-label">{s.name}</span>
                   {!locked && (
@@ -659,8 +647,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                 <div
                   className={`timeline-glue-badge${locked ? ' timeline-glue-badge-locked' : ''}`}
                   style={{ left: center }}
-                  onClick={e => { e.stopPropagation(); removeGlueGroup(indices) }}
-                  title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to unglue`}
+                  onClick={e => { e.stopPropagation(); removeFill(indices) }}
+                  title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to remove the fill`}
                 >
                   🔗
                 </div>
@@ -703,18 +691,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onKeyDown={e => { if (e.key === 'Enter' && sectionName.trim()) applySection(sectionName.trim()) }}
             />
             <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
-            {rangeGlueInfo(rangeSel[0], rangeSel[1]).eligible && (
-              <>
-                <span className="popover-divider" />
-                <button
-                  className="btn-glue"
-                  onClick={() => setGlueRange(rangeSel[0], rangeSel[1], !rangeGlueInfo(rangeSel[0], rangeSel[1]).fullyGlued)}
-                  title="Same-chord entries can share one blinking card instead of a card each — not a section"
-                >
-                  {rangeGlueInfo(rangeSel[0], rangeSel[1]).fullyGlued ? '🔓 Unglue' : '🔗 Glue'}
-                </button>
-              </>
-            )}
             <button className="btn-delete" onClick={() => deleteRange(rangeSel)}>× Delete</button>
             <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
           </>
@@ -723,15 +699,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <span className="timeline-popover-chord">{timeline[selectedIdx].chord}</span>
             <span>@ {formatTime(timeline[selectedIdx].time)}</span>
             <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
-            {canGlueToPrevious(selectedIdx) && (
-              <button
-                className="btn-glue"
-                onClick={() => toggleGlue(selectedIdx)}
-                title="Share one blinking card with the previous same-chord entry"
-              >
-                {timeline[selectedIdx].tied ? '🔓 Unglue' : '🔗 Glue to previous'}
-              </button>
-            )}
             {selectedFillGroup ? (
               <>
                 <span className="popover-divider" />
@@ -781,13 +748,20 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             )}
             <button className="btn-delete" onClick={() => deleteEntry(selectedIdx)}>× Delete</button>
           </>
-        ) : !locked && selectedSectionIdx !== null && sections[selectedSectionIdx] ? (
+        ) : !locked && selectedSectionIdxs.length === 1 && sections[selectedSectionIdxs[0]] ? (
           <>
-            <span className="timeline-popover-chord">{sections[selectedSectionIdx].name}</span>
-            <span>{formatTime(sections[selectedSectionIdx].startTime)}–{formatTime(sections[selectedSectionIdx].endTime)}</span>
-            <span className="timeline-popover-hint">Drag the band to move it · Esc to deselect</span>
-            <button className="btn-small" onClick={() => duplicateSection(selectedSectionIdx)}>⎘ Duplicate</button>
-            <button className="btn-delete" onClick={() => deleteSection(selectedSectionIdx)}>× Delete section</button>
+            <span className="timeline-popover-chord">{sections[selectedSectionIdxs[0]].name}</span>
+            <span>{formatTime(sections[selectedSectionIdxs[0]].startTime)}–{formatTime(sections[selectedSectionIdxs[0]].endTime)}</span>
+            <span className="timeline-popover-hint">Drag the band to move it · Shift+click another section to multi-select · Esc to deselect</span>
+            <button className="btn-small" onClick={() => duplicateSections(selectedSectionIdxs)}>⎘ Duplicate</button>
+            <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete section</button>
+          </>
+        ) : !locked && selectedSectionIdxs.length > 1 ? (
+          <>
+            <span className="timeline-popover-chord">{selectedSectionIdxs.length} sections selected</span>
+            <span className="timeline-popover-hint">Shift+click a section to add/remove it · Esc to deselect</span>
+            <button className="btn-small" onClick={() => duplicateSections(selectedSectionIdxs)}>⎘ Duplicate</button>
+            <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete sections</button>
           </>
         ) : (
           <span className="timeline-popover-hint">Select a chord or section below to edit it</span>
