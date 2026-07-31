@@ -1,4 +1,4 @@
-import { useId, useState, useEffect, useCallback } from 'react'
+import { useId, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section, SavedSong } from './types'
 import { ChordOverlay } from './components/ChordOverlay'
 import { SectionChordBoard } from './components/SectionChordBoard'
@@ -6,6 +6,9 @@ import { RecordingView } from './components/RecordingView'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
 import { useChordAudio } from './hooks/useChordAudio'
 import { useSectionChords } from './hooks/useChordSync'
+import { COUNT_IN_CHORD } from './lib/countIn'
+import { parseLyrics } from './lib/parseLyrics'
+import { matchLyricsToSections } from './lib/matchLyricsToSections'
 
 const API = '/api'
 
@@ -202,6 +205,7 @@ function PlayalongView({
   videoId,
   timeline,
   sections,
+  lyrics,
   chordDict,
   startOffset,
   endOffset,
@@ -213,6 +217,7 @@ function PlayalongView({
   videoId: string
   timeline: ChordEntry[]
   sections: Section[]
+  lyrics: string
   chordDict: ChordDictionary
   startOffset?: number
   endOffset?: number
@@ -222,10 +227,34 @@ function PlayalongView({
   onReset: () => void
 }) {
   const [soundOn, setSoundOn] = useState(false)
-  const [videoHidden, setVideoHidden] = useState(false)
-  const { containerRef, currentTime, isReady, isPlaying, seekTo, pause } = useYouTubePlayer(videoId)
+  const [videoHidden, setVideoHidden] = useState(true)
+  const { containerRef, currentTime, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
   const { playChord } = useChordAudio()
-  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, isLastChordActive } = useSectionChords(timeline, sections, currentTime)
+
+  // Count-in ticks are ordinary ChordEntry objects (tapped in Creator the
+  // same way chords are) using a sentinel chord value — split them out here
+  // so the section/chord-grouping hooks and card renderers below never see
+  // one, and so a count-in tick sitting before a section's startTime can't
+  // get silently dropped by the section's own time-window filtering.
+  const chordTimeline = useMemo(() => timeline.filter(e => e.chord !== COUNT_IN_CHORD), [timeline])
+  const countInEntries = useMemo(() => timeline.filter(e => e.chord === COUNT_IN_CHORD), [timeline])
+  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, isLastChordActive } = useSectionChords(chordTimeline, sections, currentTime)
+
+  // The section whose chords lead the song — count-in dots ride along with
+  // it (and with ChordOverlay's first batch, in the no-sections case) so
+  // they sit in front of the first chord card instead of replacing it.
+  const firstSection = useMemo(
+    () => sections.length ? [...sections].sort((a, b) => a.startTime - b.startTime)[0] : null,
+    [sections]
+  )
+
+  const lyricsBlocks = useMemo(() => parseLyrics(lyrics), [lyrics])
+  const lyricsBySection = useMemo(() => matchLyricsToSections(lyricsBlocks, sections), [lyricsBlocks, sections])
+  // Reserves the lyrics block's space on every section once the song uses
+  // lyrics at all, not just the ones with a matched block, so the chord
+  // grid below always starts at the same y across the whole song — not
+  // only between a section's own 1-line vs 2-line lyrics.
+  const hasLyrics = lyricsBySection.size > 0
 
   // Re-clamps forward whenever playback lands before the start offset —
   // covers the initial load, but also YouTube's native "replay" button and
@@ -240,6 +269,20 @@ function PlayalongView({
     if (currentTime >= endOffset) pause()
   }, [currentTime, endOffset, isPlaying, pause])
 
+  const playPauseRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.code !== 'Space') return
+      e.preventDefault()
+      playPauseRef.current?.focus()
+      if (isPlaying) pause(); else play()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isPlaying, play, pause])
+
   const handlePulse = useCallback((chord: string) => {
     if (!soundOn) return
     const data = chordDict[chord]
@@ -247,9 +290,6 @@ function PlayalongView({
   }, [soundOn, chordDict, playChord])
 
   const videoClass = `yt-wrapper yt-wrapper-fixed${videoHidden ? ' yt-wrapper-hidden' : ''}`
-
-  const firstChordTime = timeline[0]?.time ?? null
-  const showCountIn = firstChordTime !== null && currentTime < firstChordTime
 
   return (
     <div className="player-screen">
@@ -265,6 +305,23 @@ function PlayalongView({
             title={videoHidden ? 'Show video' : 'Hide video to make room for chords'}
           >
             {videoHidden ? '📺 Show video' : '🙈 Hide video'}
+          </button>
+          <button
+            ref={playPauseRef}
+            className={`btn-ghost${isPlaying ? ' btn-ghost-active' : ''}`}
+            onClick={() => (isPlaying ? pause() : play())}
+            disabled={!isReady}
+            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => seekTo(startOffset ?? 0)}
+            disabled={!isReady}
+            title="Rewind to the start"
+          >
+            ⏮ Start
           </button>
           <button
             className={`btn-ghost${soundOn ? ' btn-ghost-active' : ''}`}
@@ -285,10 +342,6 @@ function PlayalongView({
         </div>
       </header>
 
-      {showCountIn && (
-        <div className="count-in-banner">First chord in {(firstChordTime! - currentTime).toFixed(1)}s</div>
-      )}
-
       <div className="player-layout">
         <div className="player-left">
           <div className={videoClass}>
@@ -308,14 +361,19 @@ function PlayalongView({
               onPulse={handlePulse}
               showNextPreview={showNextChordPreview}
               isLastChordActive={isLastChordActive}
+              countInEntries={countInEntries}
+              isFirstSection={section === firstSection}
+              lyrics={lyricsBySection.get(section)}
+              hasLyrics={hasLyrics}
             />
           ) : (
             <ChordOverlay
-              timeline={timeline}
+              timeline={chordTimeline}
               currentTime={currentTime}
               chordDict={chordDict}
               onPulse={handlePulse}
               showNextPreview={showNextChordPreview}
+              countInEntries={countInEntries}
             />
           )}
         </div>
@@ -442,6 +500,7 @@ export default function App() {
         videoId={videoId}
         timeline={timeline}
         sections={creatorSnapshot?.sections ?? []}
+        lyrics={creatorSnapshot?.lyrics ?? ''}
         chordDict={chordDict}
         startOffset={creatorSnapshot?.startOffset}
         endOffset={creatorSnapshot?.endOffset}

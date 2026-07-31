@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { buildChordGroups } from '../lib/chordGroups'
+import { COUNT_IN_CHORD } from '../lib/countIn'
 import type { ChordEntry, Section } from '../types'
 
 interface Props {
@@ -648,7 +649,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   className={`timeline-glue-badge${locked ? ' timeline-glue-badge-locked' : ''}`}
                   style={{ left: center }}
                   onClick={e => { e.stopPropagation(); removeFill(indices) }}
-                  title={locked ? `${timeline[indices[0]].chord} × ${indices.length} — glued into one card` : `${timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to remove the fill`}
+                  title={locked
+                    ? `${timeline[indices[0]].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[indices[0]].chord} × ${indices.length} — glued into one card`
+                    : `${timeline[indices[0]].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to remove the fill`}
                 >
                   🔗
                 </div>
@@ -656,19 +659,23 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             )
           })}
 
-          {timeline.map((entry, idx) => (
-            <div
-              key={idx}
-              ref={el => { markerRefs.current[idx] = el }}
-              className={`timeline-marker${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel && idx >= rangeSel[0] && idx <= rangeSel[1] ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}`}
-              style={{ left: entry.time * pps }}
-              onPointerDown={e => handleMarkerPointerDown(e, idx)}
-              onClick={e => handleMarkerClick(e, idx)}
-              title={locked ? `${entry.chord} @ ${formatTime(entry.time)}` : `${entry.chord} @ ${formatTime(entry.time)} — drag to move, click to select, shift+click to select a range`}
-            >
-              {entry.chord}
-            </div>
-          ))}
+          {timeline.map((entry, idx) => {
+            const isCountIn = entry.chord === COUNT_IN_CHORD
+            const label = isCountIn ? 'Count-in' : entry.chord
+            return (
+              <div
+                key={idx}
+                ref={el => { markerRefs.current[idx] = el }}
+                className={`timeline-marker${isCountIn ? ' timeline-marker-count-in' : ''}${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel && idx >= rangeSel[0] && idx <= rangeSel[1] ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}`}
+                style={{ left: entry.time * pps }}
+                onPointerDown={e => handleMarkerPointerDown(e, idx)}
+                onClick={e => handleMarkerClick(e, idx)}
+                title={locked ? `${label} @ ${formatTime(entry.time)}` : `${label} @ ${formatTime(entry.time)} — drag to move, click to select, shift+click to select a range`}
+              >
+                {isCountIn ? '⏱' : entry.chord}
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -696,7 +703,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           </>
         ) : selectedIdx !== null && timeline[selectedIdx] ? (
           <>
-            <span className="timeline-popover-chord">{timeline[selectedIdx].chord}</span>
+            <span className="timeline-popover-chord">{timeline[selectedIdx].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx].chord}</span>
             <span>@ {formatTime(timeline[selectedIdx].time)}</span>
             <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
             {selectedFillGroup ? (
@@ -715,7 +722,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                 <span className="popover-divider" />
                 <div className="fill-beats-control">
                   <span className="timeline-popover-hint">
-                    Fill to {timeline[selectedIdx + 1].chord} @ {formatTime(timeline[selectedIdx + 1].time)} ·
+                    Fill to {timeline[selectedIdx + 1].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx + 1].chord} @ {formatTime(timeline[selectedIdx + 1].time)} ·
                   </span>
                   <input
                     type="number"

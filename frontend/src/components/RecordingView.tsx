@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { Timeline, formatTime } from './Timeline'
 import { ReferenceGuide } from './ReferenceGuide'
+import { LyricsEditor } from './LyricsEditor'
 import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
 import { parseReference } from '../lib/parseReference'
+import { COUNT_IN_CHORD } from '../lib/countIn'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
 interface Snapshot {
@@ -42,6 +44,9 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [referenceText, setReferenceText] = useState(initialSnapshot?.reference ?? '')
   const [referencePointer, setReferencePointer] = useState(0)
   const referenceItems = useMemo(() => parseReference(referenceText), [referenceText])
+
+  const [lyricsText, setLyricsText] = useState(initialSnapshot?.lyrics ?? '')
+  const sectionNames = useMemo(() => Array.from(new Set(sections.map(s => s.name))), [sections])
 
   useEffect(() => {
     setReferencePointer(p => Math.min(p, referenceItems.length))
@@ -90,12 +95,12 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       return
     }
     const t = setTimeout(() => onSnapshotChange({
-      timeline, sections, reference: referenceText, startOffset, endOffset, locked,
+      timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
       showNextChordPreview: initialSnapshot?.showNextChordPreview,
     }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText, startOffset, endOffset, locked])
+  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -134,6 +139,22 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     setReferencePointer(p => Math.min(p + 1, referenceItems.length))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
+
+  // A count-in tick has no chord sound and no corresponding lyrics/reference
+  // item, so unlike assignChord it skips both the chord-audio playback and
+  // the referencePointer advance — otherwise identical (including editing
+  // the selected entry in place, so an existing marker can be converted to
+  // a count-in tick the same way it can be converted to a chord).
+  const assignCountIn = useCallback(() => {
+    if (locked) return
+    recordHistory()
+    if (selectedIdx !== null) {
+      setTimeline(prev => prev.map((entry, i) => i === selectedIdx ? { ...entry, chord: COUNT_IN_CHORD } : entry))
+      return
+    }
+    setTimeline(prev => [...prev, { time: currentTime, chord: COUNT_IN_CHORD }].sort((a, b) => a.time - b.time))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, selectedIdx, locked, timeline, sections])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -200,16 +221,32 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           onPointerChange={setReferencePointer}
         />
 
+        {sections.length > 0 && (
+          <LyricsEditor
+            text={lyricsText}
+            onTextChange={setLyricsText}
+            sectionNames={sectionNames}
+          />
+        )}
+
         <div className="tap-strip">
           <div className="tap-instructions">
             {locked
               ? <>🔒 Timeline locked — unlock to make edits</>
               : selectedIdx !== null && timeline[selectedIdx]
                 ? <>Selected <strong>{timeline[selectedIdx].chord}</strong> @ {formatTime(timeline[selectedIdx].time)} — click a chord to change it · <kbd>Esc</kbd> to deselect</>
-                : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause</>
+                : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause · tap Count-in for a lead-in beat</>
             }
           </div>
           <div className="chord-buttons">
+            <button
+              className="chord-tap-btn chord-tap-btn-count-in"
+              onClick={assignCountIn}
+              disabled={!isReady || locked}
+              title="Tap to drop a count-in beat at the current position"
+            >
+              <span className="chord-tap-name">⏱ Count-in</span>
+            </button>
             {chords.map((chord, i) => (
               <button
                 key={chord}
@@ -255,7 +292,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           <button
             className="btn-primary"
             onClick={() => onDone(timeline, {
-              timeline, sections, reference: referenceText, startOffset, endOffset, locked,
+              timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
               showNextChordPreview: initialSnapshot?.showNextChordPreview,
             })}
             disabled={timeline.length === 0}

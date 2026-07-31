@@ -36,6 +36,7 @@ export interface CreatorSnapshot {
   timeline: ChordEntry[]
   sections?: Section[]
   reference?: string
+  lyrics?: string
   startOffset?: number
   endOffset?: number
   locked?: boolean

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
+import { CountInDots } from './CountInDots'
 import { restartChordProgress } from '../lib/chordProgress'
 import { buildChordGroups } from '../lib/chordGroups'
 import { computeBeatDots } from '../lib/beatDots'
@@ -17,9 +18,13 @@ interface Props {
   onPulse?: (chord: string) => void
   showNextPreview?: boolean
   isLastChordActive: boolean
+  countInEntries?: ChordEntry[]
+  isFirstSection?: boolean
+  lyrics?: string
+  hasLyrics?: boolean
 }
 
-const CHORD_SIZE = 1.2
+const CHORD_SIZE = 1.68
 
 // Splits `total` items into the fewest rows that fit `maxPerRow`, sized as
 // evenly as possible with any remainder going to the earlier rows — so a
@@ -33,7 +38,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, hasLyrics }: Props) {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
@@ -153,18 +158,45 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
         <span className="section-board-name">{section.name}</span>
         {nextSection && <span className="section-board-next">Next: {nextSection.name}</span>}
       </div>
+      {hasLyrics && <div className="section-board-lyrics">{lyrics ?? ''}</div>}
       <div className="section-chord-grid" ref={gridRef}>
         {rowGroups.map((group, r) => (
-          <div className="section-chord-line" key={r}>{group}</div>
-        ))}
-        {showNextPreview && isLastChordActive && nextChord && (
-          <div className="section-chord-next">
-            <span className="next-arrow">➤</span>
-            <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
-            </div>
+          <div className="section-chord-line" key={r}>
+            {r === 0 && isFirstSection && !!countInEntries?.length && (
+              <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+            )}
+            {/* Invisible mirror of the next-chord preview, placed at the
+                opposite end of this row — same reasoning as .count-in-ghost:
+                keeps the row's total width (and so its centered position)
+                identical whether the preview is showing, so the earlier
+                chord cards don't shift left when it appears. */}
+            {r === rowGroups.length - 1 && showNextPreview && isLastChordActive && nextChord && (
+              <div className="section-chord-next section-chord-next-ghost" aria-hidden="true">
+                <span className="next-arrow">➤</span>
+                <div className="chord-row-item chord-next-preview-item">
+                  <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+                </div>
+              </div>
+            )}
+            {group}
+            {r === rowGroups.length - 1 && showNextPreview && isLastChordActive && nextChord && (
+              <div className="section-chord-next">
+                <span className="next-arrow">➤</span>
+                <div className="chord-row-item chord-next-preview-item">
+                  <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+                </div>
+              </div>
+            )}
+            {/* Invisible mirror of the count-in slot — see ChordOverlay.tsx
+                for why this keeps the chord cards from shifting when the
+                real count-in disappears. */}
+            {r === 0 && isFirstSection && !!countInEntries?.length && (
+              <div className="count-in-ghost" aria-hidden="true">
+                <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+              </div>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   )

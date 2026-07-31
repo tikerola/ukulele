@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { ChordDiagram } from './ChordDiagram'
+import { CountInDots } from './CountInDots'
 import { useChordSync } from '../hooks/useChordSync'
 import { restartChordProgress } from '../lib/chordProgress'
 import { computeBeatDots } from '../lib/beatDots'
@@ -11,12 +12,17 @@ interface Props {
   chordDict: ChordDictionary
   onPulse?: (chord: string) => void
   showNextPreview?: boolean
+  countInEntries?: ChordEntry[]
 }
 
-const CHORD_SIZE = 1.3
+const CHORD_SIZE = 1.82
 
-export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true }: Props) {
+export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true, countInEntries }: Props) {
   const { currentIdx, batchGroups, activeGroupIdxInBatch, activeChordEndTime, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
+  // The very first batch is the one whose first group starts at raw entry 0
+  // — count-in only ever leads into the song's first chord, so it rides
+  // along with that batch and scrolls out of view once playback moves on.
+  const showCountIn = !!countInEntries?.length && !!batchGroups[0]?.includes(0)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastIdxRef = useRef(-1)
@@ -59,6 +65,20 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
     <div className="chord-row-wrapper">
       <div className="chord-strip-inner">
         <div className="chord-row">
+          {showCountIn && (
+            <CountInDots entries={countInEntries!} currentTime={currentTime} firstChordTime={timeline[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+          )}
+          {/* Invisible mirror of the next-chord preview — see the ghost
+              below the real preview for why this keeps the earlier chord
+              cards from shifting left when the preview appears. */}
+          {showNextPreview && isLastInBatch && nextChord && (
+            <div className="chord-next-preview chord-next-preview-ghost" aria-hidden="true">
+              <span className="next-arrow">➤</span>
+              <div className="chord-row-item chord-next-preview-item">
+                <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+              </div>
+            </div>
+          )}
           {batchGroups.map((indices, i) => {
             const anchor = timeline[indices[0]]
             const dots = computeBeatDots(timeline, indices)
@@ -81,15 +101,26 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
               </div>
             )
           })}
-        </div>
-        {showNextPreview && isLastInBatch && nextChord && (
-          <div className="chord-next-preview">
-            <span className="next-arrow">➤</span>
-            <div className="chord-row-item chord-next-preview-item">
-              <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+          {showNextPreview && isLastInBatch && nextChord && (
+            <div className="chord-next-preview">
+              <span className="next-arrow">➤</span>
+              <div className="chord-row-item chord-next-preview-item">
+                <ChordDiagram chord={nextChord} data={chordDict[nextChord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          {/* Invisible mirror of the count-in slot, same width, placed at the
+              opposite end of the row — keeps the row's total width (and so
+              its centered position) identical whether count-in is showing
+              or not, so the chord cards never shift when it disappears.
+              Both this and the real one above resolve `inCountInPhase` from
+              the same props and vanish together automatically. */}
+          {showCountIn && (
+            <div className="count-in-ghost" aria-hidden="true">
+              <CountInDots entries={countInEntries!} currentTime={currentTime} firstChordTime={timeline[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
