@@ -551,7 +551,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const ranges: [number, number][] = []
     let start: number | null = null
     timeline.forEach((entry, i) => {
-      const isFree = !sections.some(s => entry.time >= s.startTime && entry.time <= s.endTime)
+      // Count-in beats aren't chords and can't usefully belong to a song
+      // section — Playalong strips them out of the timeline it hands to
+      // useSectionChords, so a section that ends up covering only count-in
+      // beats would have zero real entries in it and, worse, never end
+      // (see useChordSync's sectionWindow), silently breaking every
+      // section after it. Treat them the same as "already claimed" so they
+      // can never end up inside a free range.
+      const isFree = entry.chord !== COUNT_IN_CHORD
+        && !sections.some(s => entry.time >= s.startTime && entry.time <= s.endTime)
       if (isFree) {
         if (start === null) start = i
       } else if (start !== null) {

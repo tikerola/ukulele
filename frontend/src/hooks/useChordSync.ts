@@ -94,8 +94,15 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
     let section: Section | null = null
     let window: ReturnType<typeof sectionWindow> | null = null
 
+    // A section with no real chord entries inside it (e.g. one accidentally
+    // tagged over count-in beats, which are stripped out of `timeline`
+    // before it ever reaches this hook) has no `nextEntry` to bound it, so
+    // `activeUntil` falls back to Infinity — skipping it here is what keeps
+    // that from permanently "swallowing" every section after it the moment
+    // playback reaches its startTime.
     for (const s of sorted) {
       const w = sectionWindow(s, timeline)
+      if (w.entries.length === 0) continue
       if (currentTime >= s.startTime && currentTime < w.activeUntil) {
         section = s
         window = w
@@ -103,12 +110,14 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
       }
     }
 
-    // Before the first chord of the earliest section, playback still sits in
-    // the run-up to it (e.g. video start before an "Intro" section's first
-    // chord). Rather than falling back to the plain view for that stretch,
-    // treat it as already belonging to the section it leads into.
-    if (!section && sorted.length > 0 && currentTime < sorted[0].startTime) {
-      section = sorted[0]
+    // Before the first chord of the earliest (non-empty) section, playback
+    // still sits in the run-up to it (e.g. video start before an "Intro"
+    // section's first chord). Rather than falling back to the plain view
+    // for that stretch, treat it as already belonging to the section it
+    // leads into.
+    const firstNonEmpty = sorted.find(s => sectionWindow(s, timeline).entries.length > 0)
+    if (!section && firstNonEmpty && currentTime < firstNonEmpty.startTime) {
+      section = firstNonEmpty
       window = sectionWindow(section, timeline)
     }
 
