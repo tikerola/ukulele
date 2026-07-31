@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { buildChordGroups } from '../lib/chordGroups'
+import { computeBeatDots } from '../lib/beatDots'
 import { COUNT_IN_CHORD } from '../lib/countIn'
 import type { ChordEntry, Section } from '../types'
 
@@ -67,7 +68,10 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
-  const [rangeSel, setRangeSel] = useState<[number, number] | null>(null)
+  // One or more contiguous ranges — a plain shift+click selection is always
+  // a single range, but "Select free chords" can produce several disjoint
+  // ones (e.g. a gap before the first section and another after the last).
+  const [rangeSel, setRangeSel] = useState<[number, number][] | null>(null)
   const [sectionName, setSectionName] = useState('')
   const [selectedSectionIdxs, setSelectedSectionIdxs] = useState<number[]>([])
   const [sectionDrag, setSectionDrag] = useState<{
@@ -308,7 +312,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       setRangeSel(null)
     } else {
       onSelectChange(null)
-      setRangeSel([lo, hi])
+      setRangeSel([[lo, hi]])
     }
   }
 
@@ -327,14 +331,22 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     }
   }
 
+  // One range → one section, same as before. Multiple ranges (from "Select
+  // free chords" spanning more than one gap) → one same-named section per
+  // range — sections already support repeating names elsewhere (Playalong
+  // lyrics matching pairs them up by chronological order per name).
   function applySection(name: string) {
-    if (!rangeSel) return
+    if (!rangeSel || rangeSel.length === 0) return
     onBeginEdit()
-    const [lo, hi] = rangeSel
-    const startTime = timeline[lo].time
-    const endTime = timeline[hi].time
-    const next = sections.filter(s => !(s.startTime === startTime && s.endTime === endTime))
-    onSectionsChange([...next, { name, startTime, endTime }].sort((a, b) => a.startTime - b.startTime))
+    const newSections = rangeSel.map(([lo, hi]) => ({
+      name,
+      startTime: timeline[lo].time,
+      endTime: timeline[hi].time,
+    }))
+    const next = sections.filter(s =>
+      !newSections.some(ns => ns.startTime === s.startTime && ns.endTime === s.endTime)
+    )
+    onSectionsChange([...next, ...newSections].sort((a, b) => a.startTime - b.startTime))
     setRangeSel(null)
     setSectionName('')
   }
@@ -355,9 +367,20 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setDragIdx(null)
   }
 
+  // A section's boundaries are just the times of its first/last chord —
+  // once either chord is gone the boundary points at nothing, so the
+  // section is cleared rather than left silently dangling (it would
+  // otherwise still render, falling back to a stale pixel position).
+  function sectionsAfterDeleting(deletedTimes: Set<number>): Section[] {
+    return sections.filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime))
+  }
+
   function deleteEntry(idx: number) {
     onBeginEdit()
+    const deletedTime = timeline[idx].time
     commitTimeline(timeline.filter((_, i) => i !== idx))
+    const nextSections = sectionsAfterDeleting(new Set([deletedTime]))
+    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
     onSelectChange(null)
   }
 
@@ -401,13 +424,25 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (locked) return
     onBeginEdit()
     const toRemove = new Set(group.slice(1))
+    const deletedTimes = new Set(group.slice(1).map(i => timeline[i].time))
     commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
+    const nextSections = sectionsAfterDeleting(deletedTimes)
+    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
   }
 
-  function deleteRange(range: [number, number]) {
+  function deleteRanges(ranges: [number, number][]) {
     onBeginEdit()
-    const [lo, hi] = range
-    commitTimeline(timeline.filter((_, i) => i < lo || i > hi))
+    const toRemove = new Set<number>()
+    const deletedTimes = new Set<number>()
+    ranges.forEach(([lo, hi]) => {
+      for (let i = lo; i <= hi; i++) {
+        toRemove.add(i)
+        deletedTimes.add(timeline[i].time)
+      }
+    })
+    commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
+    const nextSections = sectionsAfterDeleting(deletedTimes)
+    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
     setRangeSel(null)
     setAnchorIdx(null)
     setSectionName('')
@@ -467,7 +502,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
         return
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && rangeSel !== null) {
-        deleteRange(rangeSel)
+        deleteRanges(rangeSel)
         return
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdx !== null) {
@@ -508,6 +543,34 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // a manual multi-glue) — offer removing that run instead of filling again.
   const selectedFillGroup = selectedIdx !== null ? glueGroups.find(g => g[0] === selectedIdx) : undefined
 
+  // Contiguous runs of chords not covered by any section — e.g. a leading
+  // intro before the first tagged section, or a gap left between two of
+  // them. Feeds "Select free chords", so the user can grab everything
+  // that's left and tag it in one go instead of hunting for it by hand.
+  const freeRanges = useMemo(() => {
+    const ranges: [number, number][] = []
+    let start: number | null = null
+    timeline.forEach((entry, i) => {
+      const isFree = !sections.some(s => entry.time >= s.startTime && entry.time <= s.endTime)
+      if (isFree) {
+        if (start === null) start = i
+      } else if (start !== null) {
+        ranges.push([start, i - 1])
+        start = null
+      }
+    })
+    if (start !== null) ranges.push([start, timeline.length - 1])
+    return ranges
+  }, [timeline, sections])
+
+  function selectFreeChords() {
+    if (locked || freeRanges.length === 0) return
+    onSelectChange(null)
+    setSelectedSectionIdxs([])
+    setAnchorIdx(null)
+    setRangeSel(freeRanges)
+  }
+
   return (
     <div className="timeline-wrapper">
       <div className="timeline-toolbar">
@@ -545,6 +608,14 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               <button className="btn-small" onClick={() => setEndOffsetAt(undefined)} disabled={locked} title="Clear end offset">×</button>
             )}
           </div>
+          <button
+            className="btn-small"
+            onClick={selectFreeChords}
+            disabled={locked || freeRanges.length === 0}
+            title={locked ? 'Unlock to select' : 'Select every chord not yet assigned to a song section'}
+          >
+            ⬚ Select free chords
+          </button>
           <button className="btn-clear" onClick={handleClearAll} disabled={timeline.length === 0 || locked} title={locked ? 'Unlock to clear the timeline' : 'Clear entire timeline'}>
             Clear all
           </button>
@@ -594,15 +665,16 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                 </div>
               )
             })}
-            {rangeSel && markerRects[rangeSel[0]] && markerRects[rangeSel[1]] && (
+            {rangeSel?.map(([lo, hi], ri) => markerRects[lo] && markerRects[hi] && (
               <div
+                key={`range-preview-${ri}`}
                 className="timeline-section-band timeline-section-band-preview"
                 style={{
-                  left: markerRects[rangeSel[0]].left,
-                  width: Math.max(2, markerRects[rangeSel[1]].right - markerRects[rangeSel[0]].left),
+                  left: markerRects[lo].left,
+                  width: Math.max(2, markerRects[hi].right - markerRects[lo].left),
                 }}
               />
-            )}
+            ))}
           </div>
 
           <div className="timeline-playhead" style={{ left: currentTime * pps }} />
@@ -639,6 +711,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             const left = first ? first.left : timeline[indices[0]].time * pps
             const right = last ? last.right : timeline[indices[indices.length - 1]].time * pps
             const center = (left + right) / 2
+            const label = timeline[indices[0]].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[indices[0]].chord
+            // Same dot data the beat-dots row inside the card uses — shown
+            // here as beat numbers (1-4) instead of dots, so the tooltip
+            // itself says which beats are actually included, e.g. "1,3,4"
+            // makes it obvious beat 2 was skipped rather than just "× 3".
+            const beatNumbers = computeBeatDots(timeline, indices)
+              .map((state, i) => (state === 'lit' ? i + 1 : null))
+              .filter((n): n is number => n !== null)
+              .join(',')
             return (
               <div key={`glue-${indices[0]}`}>
                 <div
@@ -650,8 +731,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   style={{ left: center }}
                   onClick={e => { e.stopPropagation(); removeFill(indices) }}
                   title={locked
-                    ? `${timeline[indices[0]].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[indices[0]].chord} × ${indices.length} — glued into one card`
-                    : `${timeline[indices[0]].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[indices[0]].chord} × ${indices.length} — glued into one card, click to remove the fill`}
+                    ? `${label} ${beatNumbers} — glued into one card`
+                    : `${label} ${beatNumbers} — glued into one card, click to remove the fill`}
                 >
                   🔗
                 </div>
@@ -666,7 +747,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               <div
                 key={idx}
                 ref={el => { markerRefs.current[idx] = el }}
-                className={`timeline-marker${isCountIn ? ' timeline-marker-count-in' : ''}${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel && idx >= rangeSel[0] && idx <= rangeSel[1] ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}`}
+                className={`timeline-marker${isCountIn ? ' timeline-marker-count-in' : ''}${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel?.some(([lo, hi]) => idx >= lo && idx <= hi) ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}`}
                 style={{ left: entry.time * pps }}
                 onPointerDown={e => handleMarkerPointerDown(e, idx)}
                 onClick={e => handleMarkerClick(e, idx)}
@@ -680,10 +761,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       </div>
 
       <div className={`timeline-popover${rangeSel ? ' timeline-section-popover' : ''}`}>
-        {rangeSel && timeline[rangeSel[0]] && timeline[rangeSel[1]] ? (
+        {rangeSel && rangeSel.length > 0 && rangeSel.every(([lo, hi]) => timeline[lo] && timeline[hi]) ? (
           <>
             <span className="timeline-popover-hint">
-              {rangeSel[1] - rangeSel[0] + 1} chords selected ({formatTime(timeline[rangeSel[0]].time)}–{formatTime(timeline[rangeSel[1]].time)})
+              {rangeSel.reduce((n, [lo, hi]) => n + (hi - lo + 1), 0)} chord{rangeSel.reduce((n, [lo, hi]) => n + (hi - lo + 1), 0) === 1 ? '' : 's'} selected
+              {rangeSel.length === 1
+                ? ` (${formatTime(timeline[rangeSel[0][0]].time)}–${formatTime(timeline[rangeSel[0][1]].time)})`
+                : ` across ${rangeSel.length} gaps`}
             </span>
             <div className="section-preset-buttons">
               {SECTION_PRESETS.map(name => (
@@ -698,7 +782,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onKeyDown={e => { if (e.key === 'Enter' && sectionName.trim()) applySection(sectionName.trim()) }}
             />
             <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
-            <button className="btn-delete" onClick={() => deleteRange(rangeSel)}>× Delete</button>
+            <button className="btn-delete" onClick={() => deleteRanges(rangeSel)}>× Delete</button>
             <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
           </>
         ) : selectedIdx !== null && timeline[selectedIdx] ? (
