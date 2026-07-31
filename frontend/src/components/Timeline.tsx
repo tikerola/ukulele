@@ -14,6 +14,7 @@ interface Props {
   onSeek: (time: number) => void
   locked: boolean
   sections: Section[]
+  lyricsBySection?: Map<Section, string>
   onSectionsChange: (sections: Section[]) => void
   onBeginEdit: () => void
   canUndo: boolean
@@ -64,7 +65,7 @@ function pickTickStep(pps: number): number {
   return 60
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
@@ -647,6 +648,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           <div className="timeline-sections">
             {sections.map((s, i) => {
               const { left, width } = bandPixelRange(s.startTime, s.endTime)
+              const hasLyrics = !!lyricsBySection?.has(s)
               return (
                 <div
                   key={i}
@@ -659,9 +661,10 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   }}
                   onClick={e => handleSectionClick(e, i)}
                   onPointerDown={e => handleSectionPointerDown(e, i)}
-                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${locked ? '' : ' — drag to move, click to select, shift+click to select multiple'}`}
+                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${hasLyrics ? ' — has lyrics' : ''}${locked ? '' : ' — drag to move, click to select, shift+click to select multiple'}`}
                 >
                   <span className="timeline-section-label">{s.name}</span>
+                  {hasLyrics && <span className="timeline-section-lyrics-icon" title="Lyrics added for this section">♪</span>}
                   {!locked && (
                     <button
                       className="timeline-section-delete"

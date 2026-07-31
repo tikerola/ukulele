@@ -7,6 +7,8 @@ import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
 import { parseReference } from '../lib/parseReference'
+import { parseLyrics } from '../lib/parseLyrics'
+import { matchLyricsToSections, nextSectionAfterLastTag } from '../lib/matchLyricsToSections'
 import { COUNT_IN_CHORD } from '../lib/countIn'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
@@ -47,6 +49,28 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
 
   const [lyricsText, setLyricsText] = useState(initialSnapshot?.lyrics ?? '')
   const sectionNames = useMemo(() => Array.from(new Set(sections.map(s => s.name))), [sections])
+  const lyricsBlocks = useMemo(() => parseLyrics(lyricsText), [lyricsText])
+  // Same matching Playalong uses to pick which lyric block a section shows
+  // — reused here just to know *whether* a section has one, so the
+  // timeline can flag it without duplicating the matching logic.
+  const lyricsBySection = useMemo(
+    () => matchLyricsToSections(lyricsBlocks, sections),
+    [lyricsBlocks, sections]
+  )
+  // Which section to suggest tagging next in LyricsEditor — based on where
+  // the user left off (the last pasted block), not just "first section with
+  // no lyrics", so an intentionally empty tag (e.g. an instrumental
+  // "[Pre-Verse]") doesn't get suggested forever once they've moved on and
+  // tagged sections after it.
+  const nextUntaggedSectionName = useMemo(
+    () => nextSectionAfterLastTag(lyricsBlocks, sections)?.name ?? null,
+    [lyricsBlocks, sections]
+  )
+
+  // Collapsing the chord/count-in tap buttons frees up vertical room between
+  // the lyrics editor and the timeline — handy while tagging lyrics with
+  // section names, which needs both on screen at once but no chord taps.
+  const [chordsCollapsed, setChordsCollapsed] = useState(false)
 
   useEffect(() => {
     setReferencePointer(p => Math.min(p, referenceItems.length))
@@ -226,40 +250,52 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             text={lyricsText}
             onTextChange={setLyricsText}
             sectionNames={sectionNames}
+            nextSectionName={nextUntaggedSectionName}
           />
         )}
 
         <div className="tap-strip">
-          <div className="tap-instructions">
-            {locked
-              ? <>🔒 Timeline locked — unlock to make edits</>
-              : selectedIdx !== null && timeline[selectedIdx]
-                ? <>Selected <strong>{timeline[selectedIdx].chord}</strong> @ {formatTime(timeline[selectedIdx].time)} — click a chord to change it · <kbd>Esc</kbd> to deselect</>
-                : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause · tap Count-in for a lead-in beat</>
-            }
-          </div>
-          <div className="chord-buttons">
+          <div className="tap-strip-header">
+            <div className="tap-instructions">
+              {locked
+                ? <>🔒 Timeline locked — unlock to make edits</>
+                : selectedIdx !== null && timeline[selectedIdx]
+                  ? <>Selected <strong>{timeline[selectedIdx].chord}</strong> @ {formatTime(timeline[selectedIdx].time)} — click a chord to change it · <kbd>Esc</kbd> to deselect</>
+                  : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause · tap Count-in for a lead-in beat</>
+              }
+            </div>
             <button
-              className="chord-tap-btn chord-tap-btn-count-in"
-              onClick={assignCountIn}
-              disabled={!isReady || locked}
-              title="Tap to drop a count-in beat at the current position"
+              className="btn-small"
+              onClick={() => setChordsCollapsed(v => !v)}
+              title={chordsCollapsed ? 'Show the chord and count-in tap buttons' : 'Hide the chord and count-in tap buttons to make more room for the lyrics and timeline'}
             >
-              <span className="chord-tap-name">⏱ Count-in</span>
+              {chordsCollapsed ? '▸ Show chords' : '▾ Hide chords'}
             </button>
-            {chords.map((chord, i) => (
-              <button
-                key={chord}
-                className={`chord-tap-btn${selectedIdx !== null && timeline[selectedIdx]?.chord === chord ? ' chord-tap-btn-current' : ''}`}
-                onClick={() => assignChord(chord)}
-                disabled={!isReady || locked}
-              >
-                <span className="chord-tap-key">{i + 1}</span>
-                <span className="chord-tap-name">{chord}</span>
-                <ChordDiagram chord={chord} data={getChordData(chord)} size={0.85} />
-              </button>
-            ))}
           </div>
+          {!chordsCollapsed && (
+            <div className="chord-buttons">
+              <button
+                className="chord-tap-btn chord-tap-btn-count-in"
+                onClick={assignCountIn}
+                disabled={!isReady || locked}
+                title="Tap to drop a count-in beat at the current position"
+              >
+                <span className="chord-tap-name">⏱ Count-in</span>
+              </button>
+              {chords.map((chord, i) => (
+                <button
+                  key={chord}
+                  className={`chord-tap-btn${selectedIdx !== null && timeline[selectedIdx]?.chord === chord ? ' chord-tap-btn-current' : ''}`}
+                  onClick={() => assignChord(chord)}
+                  disabled={!isReady || locked}
+                >
+                  <span className="chord-tap-key">{i + 1}</span>
+                  <span className="chord-tap-name">{chord}</span>
+                  <ChordDiagram chord={chord} data={getChordData(chord)} size={0.85} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {isReady && duration > 0 ? (
@@ -273,6 +309,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             onSeek={seekTo}
             locked={locked}
             sections={sections}
+            lyricsBySection={lyricsBySection}
             onSectionsChange={setSections}
             onBeginEdit={recordHistory}
             canUndo={past.length > 0}

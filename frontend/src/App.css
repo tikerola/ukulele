@@ -895,6 +895,16 @@ textarea { resize: vertical; }
   margin-bottom: 8px;
 }
 
+/* The earliest timeline section that isn't tagged in the lyrics yet
+   (RecordingView.tsx's nextUntaggedSectionName) — a gold highlight matches
+   this app's existing "what's next" language (next-chord preview,
+   count-in), pointing at which [Name] button to tap next. */
+.lyrics-section-btn-next {
+  background: rgba(255, 215, 0, 0.12);
+  border-color: #ffd700;
+  color: #ffd700;
+}
+
 .lyrics-textarea {
   width: 100%;
   resize: vertical;
@@ -905,6 +915,9 @@ textarea { resize: vertical; }
   padding: 8px 10px;
   font-size: 13px;
   font-family: inherit;
+  /* Explicit so "Next without section" (LyricsEditor.tsx) can compute a
+     reliable scrollTop from a line number — line-height * line index. */
+  line-height: 1.5;
 }
 
 .lyrics-editing-actions {
@@ -927,10 +940,19 @@ textarea { resize: vertical; }
   padding: 14px 16px;
 }
 
+.tap-strip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tap-strip-header .btn-small { flex-shrink: 0; }
+
 .tap-instructions {
   font-size: 13px;
   color: var(--muted);
-  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1147,6 +1169,14 @@ kbd {
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.timeline-section-lyrics-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: #ffd700;
+  margin-right: 4px;
 }
 
 .timeline-section-delete {

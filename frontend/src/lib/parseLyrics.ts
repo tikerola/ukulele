@@ -4,8 +4,11 @@ export interface LyricsBlock {
 }
 
 // Same convention as parseReference.ts's chord-chart headers, reused here so
-// the two paste conventions stay visually consistent for the user.
-const SECTION_HEADER_RE = /^\[([^\]]+)\]$/
+// the two paste conventions stay visually consistent for the user. Exported
+// so callers that need line-level detection (e.g. LyricsEditor's "scroll to
+// last section" button) can test individual lines the same way this file
+// does, instead of duplicating the pattern.
+export const SECTION_HEADER_RE = /^\[([^\]]+)\]$/
 
 // Parses pasted lyrics into an ordered list of blocks, one per [Name]
 // header, each capturing every non-empty line up to the next header (or end
