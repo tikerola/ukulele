@@ -660,14 +660,19 @@ textarea { resize: vertical; }
 
 /* ─── Recording Screen ────────────────────────────────────── */
 
-.recording-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.recording-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
+/* overflow-y: auto (not the parent) so tall content — many chord-tap
+   buttons, a long timeline — scrolls in place instead of growing the page,
+   which would otherwise carry the header off-screen with it (and does,
+   immediately, since the reference textarea autofocuses on mount). */
 .recording-body-v2 {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 /* Mounts the (invisible) YouTube iframe for audio + time sync only —
