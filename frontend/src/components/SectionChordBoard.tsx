@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { CountInDots } from './CountInDots'
+import { LyricsCarousel } from './LyricsCarousel'
 import { restartChordProgress } from '../lib/chordProgress'
 import { buildChordGroups } from '../lib/chordGroups'
 import { computeBeatDots } from '../lib/beatDots'
@@ -21,6 +22,7 @@ interface Props {
   countInEntries?: ChordEntry[]
   isFirstSection?: boolean
   lyrics?: string
+  nextLyrics?: string
   hasLyrics?: boolean
 }
 
@@ -38,7 +40,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, hasLyrics }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics }: Props) {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
@@ -158,7 +160,14 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
         <span className="section-board-name">{section.name}</span>
         {nextSection && <span className="section-board-next">Next: {nextSection.name}</span>}
       </div>
-      {hasLyrics && <div className="section-board-lyrics">{lyrics ?? ''}</div>}
+      {hasLyrics && (
+        <LyricsCarousel
+          lyrics={lyrics}
+          nextLyrics={nextLyrics}
+          showPreview={showNextPreview}
+          isLastChordActive={isLastChordActive}
+        />
+      )}
       <div className="section-chord-grid" ref={gridRef}>
         {rowGroups.map((group, r) => (
           <div className="section-chord-line" key={r}>

@@ -255,6 +255,7 @@ function PlayalongView({
   // grid below always starts at the same y across the whole song — not
   // only between a section's own 1-line vs 2-line lyrics.
   const hasLyrics = lyricsBySection.size > 0
+  const nextLyrics = nextSection ? lyricsBySection.get(nextSection) : undefined
 
   // Re-clamps forward whenever playback lands before the start offset —
   // covers the initial load, but also YouTube's native "replay" button and
@@ -364,6 +365,7 @@ function PlayalongView({
               countInEntries={countInEntries}
               isFirstSection={section === firstSection}
               lyrics={lyricsBySection.get(section)}
+              nextLyrics={nextLyrics}
               hasLyrics={hasLyrics}
             />
           ) : (

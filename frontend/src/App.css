@@ -412,30 +412,57 @@ textarea { resize: vertical; }
   white-space: nowrap;
 }
 
-/* Matched via lib/matchLyricsToSections.ts from the Creator lyrics paste —
-   pre-line preserves the pasted block's own line breaks while still
-   wrapping normally within the available width. min-height reserves room
-   for 2 lines (line-height 1.5 * 2 = 3em) and centers shorter blocks
-   within it, so the chord grid below always starts at the same y whether
-   a section's lyrics are 1 line or 2. flex-shrink: 0 — .section-board is a
-   flex column, and without this a long (many-line) block would get
-   compressed below its actual content height whenever it doesn't all fit,
-   silently spilling its overflow: visible text into the chord grid below
-   instead of the column just scrolling (.section-board already has
-   overflow-y: auto for exactly this). */
-.section-board-lyrics {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3em;
+/* Matched via lib/matchLyricsToSections.ts from the Creator lyrics paste.
+   Rendered as a top-anchored stack of individual lines (see
+   LyricsCarousel.tsx) rather than one pre-line text block, so the section's
+   last line can be a single persistent element that the peek row animates
+   underneath instead of being recreated at a different position. */
+.lyrics-carousel {
   flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.lyrics-carousel-slide {
   white-space: pre-line;
   font-style: italic;
   color: var(--muted);
   font-size: 42px;
   line-height: 1.5;
   text-align: center;
-  margin-bottom: 16px;
+}
+
+.lyrics-carousel-line {
+  min-height: 1.5em;
+}
+
+/* Plays whenever LyricsCarousel remounts a line (new key = a new section's
+   lyrics) — genuinely new content that was never on screen before. The one
+   line that was previously peeking skips this: LyricsCarousel.tsx drives
+   its entrance manually (FLIP) from the peek row's last position instead,
+   so it continues that motion rather than restarting it. Scoped to
+   .lyrics-carousel-section so the peek row itself, which lives outside it
+   and is never remounted, isn't affected. */
+.lyrics-carousel-section .lyrics-carousel-line {
+  animation: lyrics-line-fade-in 0.5s ease;
+}
+
+@keyframes lyrics-line-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reserves its row at all times (see the comment in LyricsCarousel.tsx) —
+   only opacity/transform animate, so the peek sliding up from just below
+   the fold never changes this container's total height. */
+.lyrics-carousel-peek {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.lyrics-carousel-peek.lyrics-carousel-peek-visible {
+  opacity: 0.55;
+  transform: translateY(0);
 }
 
 .section-chord-grid {
