@@ -217,12 +217,39 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setSectionDrag(null)
   }
 
-  // Duplicates one or more sections' chords after the end of the whole
-  // timeline (not just after themselves, which could land a copy on top of
-  // whatever section already follows it), then selects the copies so they
-  // can be dragged elsewhere. All selected sections shift by the *same*
-  // offset — anchored off the earliest selected section's startTime — so
-  // the gaps between the originals are preserved between the duplicates.
+  // The trailing rhythm of a run of entries: the time of its last distinct
+  // chord change (first beat), and the gap between that and the one before
+  // it. Tied/glued fill beats (see fillToNextChord) are collapsed out of
+  // both — a filled-in bar's held beats must not shrink the measured
+  // interval down to a fraction of one, or anchor the result on a beat that
+  // isn't the start of a chord. `entries` must be in time order
+  // (sectionEntryIndices and the timeline itself already are). Interval
+  // falls back to `intervalFallback` when there are fewer than 2 distinct
+  // chords, so there's nothing to measure a rhythm from.
+  function trailingChordRhythm(entries: ChordEntry[], intervalFallback: number): { lastBeat: number; interval: number } {
+    const firstBeats: number[] = []
+    entries.forEach((e, i) => {
+      const prev = i > 0 ? entries[i - 1] : null
+      const isGlued = !!e.tied && !!prev && prev.chord === e.chord
+      if (!isGlued) firstBeats.push(e.time)
+    })
+    const lastBeat = firstBeats[firstBeats.length - 1]
+    if (firstBeats.length < 2) return { lastBeat, interval: intervalFallback }
+    return { lastBeat, interval: lastBeat - firstBeats[firstBeats.length - 2] }
+  }
+
+  // Duplicates one or more sections' chords, then selects the copies so they
+  // can still be dragged elsewhere if needed. Anchored to continue the
+  // timeline's own trailing rhythm — one chord-change interval after
+  // whatever the last real chord currently is — rather than the duplicated
+  // section's own rhythm. That matters whenever the section being
+  // duplicated isn't itself the last thing in the timeline (e.g. reusing an
+  // earlier "A" for a third verse after "A B" have already been tapped):
+  // the copy should pick up right after "B", continuing B's rhythm, not
+  // land whenever A's own chords would have led next. All selected sections
+  // shift by the same offset, anchored off the earliest selected section's
+  // startTime, so the gaps between the originals are preserved between the
+  // duplicates.
   function duplicateSections(idxs: number[]) {
     if (locked || idxs.length === 0) return
     const selected = [...idxs].map(i => sections[i]).sort((a, b) => a.startTime - b.startTime)
@@ -234,17 +261,19 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (perSection.length === 0) return
 
     onBeginEdit()
-    const lastTime = Math.max(...timeline.map(e => e.time))
-    const offset = lastTime + 1 - earliestStart
+    const last = perSection[perSection.length - 1]
+    const timelineChords = timeline.filter(e => e.chord !== COUNT_IN_CHORD)
+    const { lastBeat, interval } = trailingChordRhythm(timelineChords, last.section.endTime - last.section.startTime)
+    const offset = lastBeat + interval - earliestStart
 
     const newEntries: ChordEntry[] = []
     const newSections: Section[] = []
     perSection.forEach(({ section, entries }) => {
-      entries.forEach(e => newEntries.push({ ...e, time: Math.min(duration, e.time + offset) }))
+      entries.forEach(e => newEntries.push({ ...e, time: Math.max(0, Math.min(duration, e.time + offset)) }))
       newSections.push({
         name: section.name,
-        startTime: Math.min(duration, section.startTime + offset),
-        endTime: Math.min(duration, section.endTime + offset),
+        startTime: Math.max(0, Math.min(duration, section.startTime + offset)),
+        endTime: Math.max(0, Math.min(duration, section.endTime + offset)),
       })
     })
 
@@ -855,14 +884,22 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <span className="timeline-popover-chord">{sections[selectedSectionIdxs[0]].name}</span>
             <span>{formatTime(sections[selectedSectionIdxs[0]].startTime)}–{formatTime(sections[selectedSectionIdxs[0]].endTime)}</span>
             <span className="timeline-popover-hint">Drag the band to move it · Shift+click another section to multi-select · Esc to deselect</span>
-            <button className="btn-small" onClick={() => duplicateSections(selectedSectionIdxs)}>⎘ Duplicate</button>
+            <button
+              className="btn-small"
+              onClick={() => duplicateSections(selectedSectionIdxs)}
+              title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
+            >⎘ Duplicate</button>
             <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete section</button>
           </>
         ) : !locked && selectedSectionIdxs.length > 1 ? (
           <>
             <span className="timeline-popover-chord">{selectedSectionIdxs.length} sections selected</span>
             <span className="timeline-popover-hint">Shift+click a section to add/remove it · Esc to deselect</span>
-            <button className="btn-small" onClick={() => duplicateSections(selectedSectionIdxs)}>⎘ Duplicate</button>
+            <button
+              className="btn-small"
+              onClick={() => duplicateSections(selectedSectionIdxs)}
+              title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
+            >⎘ Duplicate</button>
             <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete sections</button>
           </>
         ) : (
