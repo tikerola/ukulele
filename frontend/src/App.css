@@ -424,7 +424,10 @@ textarea { resize: vertical; }
 
 .lyrics-carousel-slide {
   white-space: pre-line;
-  font-style: italic;
+  font-family: 'Quicksand', sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--muted);
   font-size: 42px;
   line-height: 1.5;
@@ -433,6 +436,32 @@ textarea { resize: vertical; }
 
 .lyrics-carousel-line {
   min-height: 1.5em;
+}
+
+/* Small "this is sung, not just chords" cue above the lyrics block — a
+   flanked note glyph rather than a border/card, since the lyrics are
+   center-aligned and a lopsided blockquote-style rule would fight that. */
+.lyrics-carousel-ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.lyrics-carousel-ornament::before,
+.lyrics-carousel-ornament::after {
+  content: '';
+  width: 52px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.35;
+}
+
+.lyrics-carousel-ornament-note {
+  font-size: 24px;
+  color: var(--primary);
+  opacity: 0.75;
 }
 
 /* Plays whenever LyricsCarousel remounts a line (new key = a new section's

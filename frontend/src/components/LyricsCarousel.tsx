@@ -91,6 +91,9 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
 
   return (
     <div className="lyrics-carousel">
+      <div className="lyrics-carousel-ornament">
+        <span className="lyrics-carousel-ornament-note">♪</span>
+      </div>
       <div key={lyrics ?? ''} className="lyrics-carousel-section">
         {precedingLines.map((line, i) => (
           <div
