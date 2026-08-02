@@ -5,6 +5,7 @@ interface Props {
   nextLyrics?: string
   showPreview: boolean
   isLastChordActive: boolean
+  zoom?: number
 }
 
 // The section's lines minus its last are rendered as plain static rows; the
@@ -23,7 +24,7 @@ interface Props {
 // position and opacity, so it continues the same motion instead of
 // restarting it. Every other line is new content that was never on screen
 // before, so it just plays the normal per-line mount fade-in.
-export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordActive }: Props) {
+export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordActive, zoom = 1 }: Props) {
   const lines = lyrics ? lyrics.split('\n') : []
   const precedingLines = lines.slice(0, -1)
   const lastLine = lines.length ? lines[lines.length - 1] : null
@@ -90,10 +91,7 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
   const arrivedIsPreceding = precedingLines.length > 0
 
   return (
-    <div className="lyrics-carousel">
-      <div className="lyrics-carousel-ornament">
-        <span className="lyrics-carousel-ornament-note">♪</span>
-      </div>
+    <div className="lyrics-carousel" style={{ ['--lyrics-zoom' as string]: zoom }}>
       <div key={lyrics ?? ''} className="lyrics-carousel-section">
         {precedingLines.map((line, i) => (
           <div

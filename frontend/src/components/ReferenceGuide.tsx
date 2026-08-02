@@ -7,15 +7,22 @@ interface Props {
   items: ReferenceItem[]
   pointer: number
   onPointerChange: (index: number) => void
+  locked: boolean
 }
 
-export function ReferenceGuide({ text, onTextChange, items, pointer, onPointerChange }: Props) {
+export function ReferenceGuide({ text, onTextChange, items, pointer, onPointerChange, locked }: Props) {
   const [editing, setEditing] = useState(text.trim().length === 0)
   const chipRefs = useRef<(HTMLSpanElement | null)[]>([])
 
   useEffect(() => {
     chipRefs.current[pointer]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [pointer])
+
+  // Kicks out of an in-progress edit if the Creator gets locked mid-edit,
+  // same as Timeline clearing its own selection on lock.
+  useEffect(() => {
+    if (locked) setEditing(false)
+  }, [locked])
 
   if (editing) {
     return (
@@ -47,7 +54,12 @@ export function ReferenceGuide({ text, onTextChange, items, pointer, onPointerCh
 
   return (
     <div className="reference-guide">
-      <button className="btn-small reference-edit-btn" onClick={() => setEditing(true)} title="Edit reference progression">✎ Edit</button>
+      <button
+        className="btn-small reference-edit-btn"
+        onClick={() => setEditing(true)}
+        disabled={locked}
+        title={locked ? 'Unlock to edit the reference progression' : 'Edit reference progression'}
+      >✎ Edit</button>
       {items.length === 0 ? (
         <span className="reference-empty-hint">No chords recognized in the pasted text</span>
       ) : (

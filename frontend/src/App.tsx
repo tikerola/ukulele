@@ -12,6 +12,21 @@ import { matchLyricsToSections } from './lib/matchLyricsToSections'
 
 const API = '/api'
 
+// Playalong's chord-chart and lyrics zoom are independent display
+// preferences, not part of a song's saved data — they apply across every
+// song, so each is kept in its own localStorage slot (persists across
+// reloads) rather than in CreatorSnapshot.
+const CHORD_ZOOM_STORAGE_KEY = 'ukesync-playalong-chord-zoom'
+const LYRICS_ZOOM_STORAGE_KEY = 'ukesync-playalong-lyrics-zoom'
+const ZOOM_MIN = 0.7
+const ZOOM_MAX = 1.6
+const ZOOM_STEP = 0.1
+
+function loadZoom(storageKey: string): number {
+  const raw = Number(localStorage.getItem(storageKey))
+  return raw >= ZOOM_MIN && raw <= ZOOM_MAX ? raw : 1
+}
+
 function extractVideoId(url: string): string | null {
   const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/)
   return m ? m[1] : null
@@ -228,7 +243,25 @@ function PlayalongView({
 }) {
   const [soundOn, setSoundOn] = useState(false)
   const [videoHidden, setVideoHidden] = useState(true)
-  const { containerRef, currentTime, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
+  const [chordZoom, setChordZoom] = useState(() => loadZoom(CHORD_ZOOM_STORAGE_KEY))
+  const [lyricsZoom, setLyricsZoom] = useState(() => loadZoom(LYRICS_ZOOM_STORAGE_KEY))
+  useEffect(() => {
+    localStorage.setItem(CHORD_ZOOM_STORAGE_KEY, String(chordZoom))
+  }, [chordZoom])
+  useEffect(() => {
+    localStorage.setItem(LYRICS_ZOOM_STORAGE_KEY, String(lyricsZoom))
+  }, [lyricsZoom])
+  const chordZoomIn = useCallback(() => setChordZoom(z => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100)), [])
+  const chordZoomOut = useCallback(() => setChordZoom(z => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100)), [])
+  const lyricsZoomIn = useCallback(() => setLyricsZoom(z => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100)), [])
+  const lyricsZoomOut = useCallback(() => setLyricsZoom(z => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100)), [])
+  const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
+  // Read by the ArrowLeft/ArrowRight handler below instead of closing over
+  // currentTime directly, so that handler's effect doesn't need to re-run
+  // (removing and re-adding the window listener) on every animation frame
+  // during playback.
+  const currentTimeRef = useRef(currentTime)
+  currentTimeRef.current = currentTime
   const { playChord } = useChordAudio()
 
   // Count-in ticks are ordinary ChordEntry objects (tapped in Creator the
@@ -275,14 +308,18 @@ function PlayalongView({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.code !== 'Space') return
-      e.preventDefault()
-      playPauseRef.current?.focus()
-      if (isPlaying) pause(); else play()
+      if (e.code === 'Space') {
+        e.preventDefault()
+        playPauseRef.current?.focus()
+        if (isPlaying) pause(); else play()
+        return
+      }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(Math.max(0, currentTimeRef.current - 2)); return }
+      if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(Math.min(duration, currentTimeRef.current + 2)); return }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isPlaying, play, pause])
+  }, [isPlaying, play, pause, seekTo, duration])
 
   const handlePulse = useCallback((chord: string) => {
     if (!soundOn) return
@@ -331,6 +368,18 @@ function PlayalongView({
           >
             {soundOn ? '🔊' : '🔇'}
           </button>
+          <div className="zoom-controls" title="Zoom the chord charts">
+            <span className="zoom-label">🎸</span>
+            <button className="btn-ghost zoom-btn" onClick={chordZoomOut} disabled={chordZoom <= ZOOM_MIN} title="Zoom chords out">－</button>
+            <span className="zoom-level">{Math.round(chordZoom * 100)}%</span>
+            <button className="btn-ghost zoom-btn" onClick={chordZoomIn} disabled={chordZoom >= ZOOM_MAX} title="Zoom chords in">＋</button>
+          </div>
+          <div className="zoom-controls" title="Zoom the lyrics">
+            <span className="zoom-label">📝</span>
+            <button className="btn-ghost zoom-btn" onClick={lyricsZoomOut} disabled={lyricsZoom <= ZOOM_MIN} title="Zoom lyrics out">－</button>
+            <span className="zoom-level">{Math.round(lyricsZoom * 100)}%</span>
+            <button className="btn-ghost zoom-btn" onClick={lyricsZoomIn} disabled={lyricsZoom >= ZOOM_MAX} title="Zoom lyrics in">＋</button>
+          </div>
           <button
             className={`btn-ghost${showNextChordPreview ? ' btn-ghost-active' : ''}`}
             onClick={() => onShowNextChordPreviewChange(!showNextChordPreview)}
@@ -367,6 +416,8 @@ function PlayalongView({
               lyrics={lyricsBySection.get(section)}
               nextLyrics={nextLyrics}
               hasLyrics={hasLyrics}
+              chordZoom={chordZoom}
+              lyricsZoom={lyricsZoom}
             />
           ) : (
             <ChordOverlay
@@ -376,6 +427,7 @@ function PlayalongView({
               onPulse={handlePulse}
               showNextPreview={showNextChordPreview}
               countInEntries={countInEntries}
+              chordZoom={chordZoom}
             />
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { parseLyrics, SECTION_HEADER_RE } from '../lib/parseLyrics'
 
 interface Props {
@@ -6,12 +6,19 @@ interface Props {
   onTextChange: (text: string) => void
   sectionNames: string[]
   nextSectionName?: string | null
+  locked: boolean
 }
 
-export function LyricsEditor({ text, onTextChange, sectionNames, nextSectionName }: Props) {
+export function LyricsEditor({ text, onTextChange, sectionNames, nextSectionName, locked }: Props) {
   const [editing, setEditing] = useState(text.trim().length === 0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pendingSelectionRef = useRef<number | null>(null)
+
+  // Kicks out of an in-progress edit if the Creator gets locked mid-edit,
+  // same as Timeline clearing its own selection on lock.
+  useEffect(() => {
+    if (locked) setEditing(false)
+  }, [locked])
 
   // The textarea is controlled, so writing to it directly would be
   // clobbered by the next render — instead stash where the caret should
@@ -112,7 +119,12 @@ export function LyricsEditor({ text, onTextChange, sectionNames, nextSectionName
 
   return (
     <div className="lyrics-guide">
-      <button className="btn-small" onClick={() => setEditing(true)} title="Edit lyrics">✎ Edit lyrics</button>
+      <button
+        className="btn-small"
+        onClick={() => setEditing(true)}
+        disabled={locked}
+        title={locked ? 'Unlock to edit the lyrics' : 'Edit lyrics'}
+      >✎ Edit lyrics</button>
       <span className="lyrics-summary-hint">
         {blocks.length === 0
           ? 'No lyrics added'

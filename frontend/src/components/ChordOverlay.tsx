@@ -13,11 +13,14 @@ interface Props {
   onPulse?: (chord: string) => void
   showNextPreview?: boolean
   countInEntries?: ChordEntry[]
+  chordZoom?: number
 }
 
-const CHORD_SIZE = 1.82
+const BASE_CHORD_SIZE = 1.82
+const BASE_CHORD_ROW_GAP = 28
 
-export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true, countInEntries }: Props) {
+export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true, countInEntries, chordZoom = 1 }: Props) {
+  const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const { currentIdx, batchGroups, activeGroupIdxInBatch, activeChordEndTime, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
   // The very first batch is the one whose first group starts at raw entry 0
   // — count-in only ever leads into the song's first chord, so it rides
@@ -64,7 +67,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
   return (
     <div className="chord-row-wrapper">
       <div className="chord-strip-inner">
-        <div className="chord-row">
+        <div className="chord-row" style={{ ['--chord-row-gap' as string]: `${BASE_CHORD_ROW_GAP * chordZoom}px` }}>
           {showCountIn && (
             <CountInDots entries={countInEntries!} currentTime={currentTime} firstChordTime={timeline[0]?.time ?? 0} chordSize={CHORD_SIZE} />
           )}

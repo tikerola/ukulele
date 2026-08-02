@@ -24,9 +24,12 @@ interface Props {
   lyrics?: string
   nextLyrics?: string
   hasLyrics?: boolean
+  chordZoom?: number
+  lyricsZoom?: number
 }
 
-const CHORD_SIZE = 1.68
+const BASE_CHORD_SIZE = 1.68
+const BASE_CHORD_GAP = 20
 
 // Splits `total` items into the fewest rows that fit `maxPerRow`, sized as
 // evenly as possible with any remainder going to the earlier rows — so a
@@ -40,7 +43,8 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, chordZoom = 1, lyricsZoom = 1 }: Props) {
+  const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
   const lastKeyRef = useRef<string>('')
@@ -154,10 +158,16 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
     })
   })
 
+  // Mirrors the condition LyricsCarousel uses to render actual content (as
+  // opposed to nothing) — the note glyph only makes sense on the header row
+  // when there's a lyrics line (current or upcoming preview) to go with it.
+  const showLyricsOrnament = hasLyrics && (!!lyrics || !!nextLyrics)
+
   return (
     <div className="section-board">
       <div className="section-board-header">
         <span className="section-board-name">{section.name}</span>
+        {showLyricsOrnament && <span className="section-board-ornament">♪</span>}
         {nextSection && <span className="section-board-next">Next: {nextSection.name}</span>}
       </div>
       {hasLyrics && (
@@ -166,9 +176,10 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           nextLyrics={nextLyrics}
           showPreview={showNextPreview}
           isLastChordActive={isLastChordActive}
+          zoom={lyricsZoom}
         />
       )}
-      <div className="section-chord-grid" ref={gridRef}>
+      <div className="section-chord-grid" ref={gridRef} style={{ ['--chord-gap' as string]: `${BASE_CHORD_GAP * chordZoom}px` }}>
         {rowGroups.map((group, r) => (
           <div className="section-chord-line" key={r}>
             {r === 0 && isFirstSection && !!countInEntries?.length && (

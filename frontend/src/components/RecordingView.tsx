@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChordDiagram } from './ChordDiagram'
+import { ChordTapStrip } from './ChordTapStrip'
 import { Timeline, formatTime } from './Timeline'
 import { ReferenceGuide } from './ReferenceGuide'
 import { LyricsEditor } from './LyricsEditor'
@@ -32,6 +32,16 @@ interface Props {
 
 export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onBack }: Props) {
   const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
+  // assignChord/assignCountIn read the latest time from here instead of
+  // closing over `currentTime` directly, so they don't need it in their own
+  // dependency arrays. currentTime updates every animation frame while the
+  // video plays (useYouTubePlayer's tick loop) — if those callbacks
+  // depended on it, they (and everything holding onto them, like the
+  // tap-strip's onClick props) would be recreated at that same rate for as
+  // long as the video played, which is exactly when a user is tapping
+  // chords.
+  const currentTimeRef = useRef(currentTime)
+  currentTimeRef.current = currentTime
   const { playChord } = useChordAudio()
   const [soundOn, setSoundOn] = useState(true)
   const [timeline, setTimeline] = useState<ChordEntry[]>(initialSnapshot?.timeline ?? [])
@@ -159,10 +169,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       setTimeline(prev => prev.map((entry, i) => i === selectedIdx ? { ...entry, chord } : entry))
       return
     }
-    setTimeline(prev => [...prev, { time: currentTime, chord }].sort((a, b) => a.time - b.time))
+    setTimeline(prev => [...prev, { time: currentTimeRef.current, chord }].sort((a, b) => a.time - b.time))
     setReferencePointer(p => Math.min(p + 1, referenceItems.length))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
+  }, [soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
 
   // A count-in tick has no chord sound and no corresponding lyrics/reference
   // item, so unlike assignChord it skips both the chord-audio playback and
@@ -176,13 +186,38 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       setTimeline(prev => prev.map((entry, i) => i === selectedIdx ? { ...entry, chord: COUNT_IN_CHORD } : entry))
       return
     }
-    setTimeline(prev => [...prev, { time: currentTime, chord: COUNT_IN_CHORD }].sort((a, b) => a.time - b.time))
+    setTimeline(prev => [...prev, { time: currentTimeRef.current, chord: COUNT_IN_CHORD }].sort((a, b) => a.time - b.time))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, selectedIdx, locked, timeline, sections])
+  }, [selectedIdx, locked, timeline, sections])
+
+  // Holding Alt while the video plays arms punch-in overwrite: any chord
+  // tap made while it's held (below) starts a sweep from that tap's time,
+  // and as currentTime keeps advancing while Alt stays down, every
+  // existing entry the playhead sweeps past gets deleted. Tapping a
+  // *different* chord mid-sweep, still without releasing Alt, both writes
+  // the new chord right there and (by moving sweepStart forward) hands the
+  // sweep off to it, so you can switch chords smoothly mid-punch-in instead
+  // of only ever overwriting with whichever one you started with. Without
+  // Alt held, chord keys are just plain taps, same as ever. (Ctrl was the
+  // first choice, but Ctrl+1..9 are browser tab-switch shortcuts handled
+  // below page JS, so Alt avoids that collision.)
+  const altHeldRef = useRef(false)
+  const overwriteRef = useRef<{ sweepStart: number } | null>(null)
+
+  useEffect(() => {
+    const active = overwriteRef.current
+    if (!active || locked) return
+    const inSweep = (t: number) => t > active.sweepStart && t <= currentTime
+    if (!timeline.some(e => inSweep(e.time))) return
+    const deletedTimes = new Set(timeline.filter(e => inSweep(e.time)).map(e => e.time))
+    setTimeline(prev => prev.filter(e => !inSweep(e.time)))
+    setSections(prev => prev.filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime)))
+  }, [currentTime, timeline, locked])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'Alt') { altHeldRef.current = true; return }
       if (e.code === 'Space') {
         e.preventDefault()
         // A focused chord/tap button would otherwise "activate" (re-tap
@@ -191,13 +226,42 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         if (isPlaying) pause(); else play()
         return
       }
-      if (e.key === 'Escape') { setSelectedIdx(null); return }
+      if (e.key === 'Escape') { setSelectedIdx(null); overwriteRef.current = null; return }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(Math.max(0, currentTimeRef.current - 2)); return }
+      if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(Math.min(duration, currentTimeRef.current + 2)); return }
+      // OS key-repeat would otherwise re-tap the same chord every ~30-50ms
+      // for as long as it's held.
+      if (e.repeat) return
       const i = parseInt(e.key) - 1
-      if (i >= 0 && i < chords.length) assignChord(chords[i])
+      if (i < 0 || i >= chords.length) return
+      assignChord(chords[i])
+      if (selectedIdx === null && altHeldRef.current) {
+        overwriteRef.current = { sweepStart: currentTimeRef.current }
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key === 'Alt') {
+        altHeldRef.current = false
+        overwriteRef.current = null
+      }
+    }
+    // Safety net: if Alt is released while the window doesn't have focus
+    // (e.g. switching to another window mid-hold), no keyup ever reaches
+    // us — without this the sweep would keep deleting indefinitely once
+    // focus returns and currentTime resumes advancing.
+    function onBlur() {
+      altHeldRef.current = false
+      overwriteRef.current = null
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [chords, assignChord, isPlaying, play, pause])
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [chords, assignChord, isPlaying, play, pause, seekTo, duration, selectedIdx])
 
   return (
     <div className="recording-screen">
@@ -243,6 +307,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           items={referenceItems}
           pointer={referencePointer}
           onPointerChange={setReferencePointer}
+          locked={locked}
         />
 
         {sections.length > 0 && (
@@ -251,6 +316,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             onTextChange={setLyricsText}
             sectionNames={sectionNames}
             nextSectionName={nextUntaggedSectionName}
+            locked={locked}
           />
         )}
 
@@ -273,28 +339,15 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
             </button>
           </div>
           {!chordsCollapsed && (
-            <div className="chord-buttons">
-              <button
-                className="chord-tap-btn chord-tap-btn-count-in"
-                onClick={assignCountIn}
-                disabled={!isReady || locked}
-                title="Tap to drop a count-in beat at the current position"
-              >
-                <span className="chord-tap-name">⏱ Count-in</span>
-              </button>
-              {chords.map((chord, i) => (
-                <button
-                  key={chord}
-                  className={`chord-tap-btn${selectedIdx !== null && timeline[selectedIdx]?.chord === chord ? ' chord-tap-btn-current' : ''}`}
-                  onClick={() => assignChord(chord)}
-                  disabled={!isReady || locked}
-                >
-                  <span className="chord-tap-key">{i + 1}</span>
-                  <span className="chord-tap-name">{chord}</span>
-                  <ChordDiagram chord={chord} data={getChordData(chord)} size={0.85} />
-                </button>
-              ))}
-            </div>
+            <ChordTapStrip
+              chords={chords}
+              chordDict={chordDict}
+              currentChord={selectedIdx !== null ? timeline[selectedIdx]?.chord ?? null : null}
+              locked={locked}
+              isReady={isReady}
+              onTapChord={assignChord}
+              onTapCountIn={assignCountIn}
+            />
           )}
         </div>
 

@@ -30,6 +30,7 @@ interface Props {
 const MIN_PPS = 10
 const MAX_PPS = 200
 const DEFAULT_PPS = 40
+const FILL_BEATS_STORAGE_KEY = 'ukesync-fill-beats'
 
 const SECTION_PRESETS = ['Intro', 'Verse', 'Chorus', 'Pre-Chorus', 'Instrumental']
 
@@ -65,9 +66,57 @@ function pickTickStep(pps: number): number {
   return 60
 }
 
+// Shared by the per-chord and per-section fill popovers so the beats-count
+// input and per-beat on/off chips (and their behavior) can't drift apart.
+// Defined at module scope (not nested in Timeline) so it keeps a stable
+// component identity across renders — nested inside, a fresh function value
+// on every render would make React treat it as a new component type each
+// time and remount the control (and its input, losing focus/edits) on every
+// keystroke.
+function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }: {
+  fillBeats: number
+  fillSkip: Set<number>
+  onFillBeatsChange: (value: number) => void
+  onToggleBeat: (i: number) => void
+}) {
+  return (
+    <>
+      <input
+        type="number"
+        min={2}
+        max={16}
+        value={fillBeats}
+        onChange={e => onFillBeatsChange(Math.max(2, Math.min(16, parseInt(e.target.value) || 2)))}
+        className="fill-beats-input"
+        title="How many equal beats to divide each gap into"
+      />
+      <div className="fill-beats-chips">
+        {Array.from({ length: fillBeats }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            className={`fill-beat-chip${i === 0 || !fillSkip.has(i) ? ' fill-beat-chip-on' : ''}`}
+            disabled={i === 0}
+            onClick={() => onToggleBeat(i)}
+            title={i === 0 ? `Beat 1 — this tap` : `Beat ${i + 1}${fillSkip.has(i) ? ' — off' : ' — on'}`}
+          >
+            {i + 1}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
+  // Captured at the start of a marker drag: which section(s) currently treat
+  // this exact chord's time as their startTime and/or endTime (a section
+  // with only one chord binds both edges to it) — so dragging a boundary
+  // chord carries its section's edge along instead of silently leaving the
+  // section behind at the chord's old position.
+  const [markerBoundSections, setMarkerBoundSections] = useState<{ si: number; edge: 'start' | 'end' }[]>([])
   const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
   // One or more contiguous ranges — a plain shift+click selection is always
   // a single range, but "Select free chords" can produce several disjoint
@@ -83,12 +132,31 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     originalSection: Section
   } | null>(null)
   const [trimDrag, setTrimDrag] = useState<'start' | 'end' | null>(null)
-  const [fillBeats, setFillBeats] = useState(4)
+  // Remembered across sessions (not just within one) — once you've settled
+  // on e.g. "8 beats, skip the offbeats" for how you tap in a song, that's
+  // almost always still what you want the next time you open Creator.
+  const [fillBeats, setFillBeats] = useState<number>(() => {
+    const saved = parseInt(window.localStorage.getItem(FILL_BEATS_STORAGE_KEY) ?? '', 10)
+    return Number.isFinite(saved) ? Math.max(2, Math.min(16, saved)) : 4
+  })
   const [fillSkip, setFillSkip] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    try { window.localStorage.setItem(FILL_BEATS_STORAGE_KEY, String(fillBeats)) } catch { /* storage unavailable */ }
+  }, [fillBeats])
 
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastScrolledSecondRef = useRef(-1)
+  // Set right before a click-to-seek so the scroll-into-view effect below
+  // can tell "the user just clicked somewhere off-screen" apart from
+  // "the playhead reached the edge during normal playback" — the former
+  // should snap the view to the clicked spot instantly (the user already
+  // knows where they clicked), the latter can ease into it. Without this
+  // distinction, every click far from the visible area animated the whole
+  // track sliding under the (already-correctly-positioned) playhead, which
+  // read as the playhead itself drifting before settling.
+  const justSeekedRef = useRef(false)
   const markerRefs = useRef<(HTMLDivElement | null)[]>([])
   const [markerRects, setMarkerRects] = useState<Record<number, { left: number; right: number }>>({})
 
@@ -140,6 +208,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   }
 
   function handleTrackClick(e: React.MouseEvent) {
+    justSeekedRef.current = true
     onSeek(timeFromClientX(e.clientX))
     onSelectChange(null)
     setRangeSel(null)
@@ -327,6 +396,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(idx)
     setRangeSel(null)
     setSelectedSectionIdxs([])
+    const t = timeline[idx].time
+    const bound: { si: number; edge: 'start' | 'end' }[] = []
+    sections.forEach((s, si) => {
+      if (s.startTime === t) bound.push({ si, edge: 'start' })
+      if (s.endTime === t) bound.push({ si, edge: 'end' })
+    })
+    setMarkerBoundSections(bound)
   }
 
   function handleMarkerClick(e: React.MouseEvent, idx: number) {
@@ -386,6 +462,12 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const t = timeFromClientX(e.clientX)
     const next = timeline.map((entry, i) => i === dragIdx ? { ...entry, time: t } : entry)
     onChange(next)
+    if (markerBoundSections.length > 0) {
+      onSectionsChange(sections.map((s, si) => {
+        const edges = markerBoundSections.filter(b => b.si === si)
+        return edges.reduce((acc, { edge }) => edge === 'start' ? { ...acc, startTime: t } : { ...acc, endTime: t }, s)
+      }))
+    }
   }
 
   function handleMarkerPointerUp() {
@@ -395,6 +477,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onChange(sorted)
     onSelectChange(sorted.indexOf(draggedEntry))
     setDragIdx(null)
+    setMarkerBoundSections([])
   }
 
   // A section's boundaries are just the times of its first/last chord —
@@ -422,18 +505,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     })
   }
 
-  // Divides the gap between `idx` and the next entry into `fillBeats` equal
-  // beats and taps the same chord onto every one of them that isn't skipped
-  // — everything after the first is glued (`tied: true`) so it shares one
-  // blinking card with the original tap instead of drawing a card each.
-  // Each created beat also records its own quarter (0-3, scaled onto a
-  // nominal 4-beat bar when fillBeats isn't 4) so the beat-dots always know
-  // exactly which position it represents, with no timing math involved.
-  function fillToNextChord(idx: number) {
-    if (locked) return
-    const start = timeline[idx]
-    const next = timeline[idx + 1]
-    if (!start || !next || fillBeats < 2) return
+  // Divides the gap between two timeline entries into `fillBeats` equal
+  // beats and taps the starting chord onto every one of them that isn't
+  // skipped — everything after the first is glued (`tied: true`) so it
+  // shares one blinking card with the original tap instead of drawing a
+  // card each. Each created beat also records its own quarter (0-3, scaled
+  // onto a nominal 4-beat bar when fillBeats isn't 4) so the beat-dots
+  // always know exactly which position it represents, with no timing math
+  // involved.
+  function fillBeatsBetween(start: ChordEntry, next: ChordEntry): ChordEntry[] {
     const step = (next.time - start.time) / fillBeats
     const newEntries: ChordEntry[] = []
     for (let b = 1; b < fillBeats; b++) {
@@ -441,6 +521,44 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       const beatSlot = Math.min(3, Math.round((b / fillBeats) * 4))
       newEntries.push({ time: start.time + step * b, chord: start.chord, tied: true, beatSlot })
     }
+    return newEntries
+  }
+
+  function fillToNextChord(idx: number) {
+    if (locked) return
+    const start = timeline[idx]
+    const next = timeline[idx + 1]
+    if (!start || !next || fillBeats < 2) return
+    const newEntries = fillBeatsBetween(start, next)
+    if (newEntries.length === 0) return
+    onBeginEdit()
+    commitTimeline([...timeline, ...newEntries])
+    setFillSkip(new Set())
+  }
+
+  // Same fill, applied in one action to every bare gap between consecutive
+  // chords across one or more selected sections — gaps that already have a
+  // fill (or any other entry) between their chords are left untouched, so
+  // re-running this doesn't stack duplicate beats into an already-filled
+  // gap. All new entries are computed against the same starting `timeline`
+  // and committed together as a single undo step, rather than calling
+  // fillToNextChord repeatedly (which would each read a stale `timeline`
+  // prop from before the others' entries were added).
+  function fillSectionsBeats(idxs: number[]) {
+    if (locked || fillBeats < 2 || idxs.length === 0) return
+    const groups = buildChordGroups(timeline)
+    const newEntries: ChordEntry[] = []
+    idxs.forEach(si => {
+      const section = sections[si]
+      if (!section) return
+      const anchors = sectionEntryIndices(section).filter(i => groups.some(g => g[0] === i))
+      for (let k = 0; k < anchors.length - 1; k++) {
+        const startIdx = anchors[k]
+        const nextIdx = anchors[k + 1]
+        if (nextIdx !== startIdx + 1) continue
+        newEntries.push(...fillBeatsBetween(timeline[startIdx], timeline[nextIdx]))
+      }
+    })
     if (newEntries.length === 0) return
     onBeginEdit()
     commitTimeline([...timeline, ...newEntries])
@@ -548,12 +666,14 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   useEffect(() => {
     if (currentSecond === lastScrolledSecondRef.current) return
     lastScrolledSecondRef.current = currentSecond
+    const wasSeek = justSeekedRef.current
+    justSeekedRef.current = false
     const container = scrollRef.current
     if (!container) return
     const playheadX = currentTime * pps
     const { scrollLeft, clientWidth } = container
     if (playheadX < scrollLeft + 60 || playheadX > scrollLeft + clientWidth - 60) {
-      container.scrollTo({ left: Math.max(0, playheadX - clientWidth / 2), behavior: 'smooth' })
+      container.scrollTo({ left: Math.max(0, playheadX - clientWidth / 2), behavior: wasSeek ? 'auto' : 'smooth' })
     }
   }, [currentSecond, currentTime, pps])
 
@@ -848,29 +968,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   <span className="timeline-popover-hint">
                     Fill to {timeline[selectedIdx + 1].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx + 1].chord} @ {formatTime(timeline[selectedIdx + 1].time)} ·
                   </span>
-                  <input
-                    type="number"
-                    min={2}
-                    max={16}
-                    value={fillBeats}
-                    onChange={e => setFillBeats(Math.max(2, Math.min(16, parseInt(e.target.value) || 2)))}
-                    className="fill-beats-input"
-                    title="How many equal beats to divide this gap into"
-                  />
-                  <div className="fill-beats-chips">
-                    {Array.from({ length: fillBeats }, (_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className={`fill-beat-chip${i === 0 || !fillSkip.has(i) ? ' fill-beat-chip-on' : ''}`}
-                        disabled={i === 0}
-                        onClick={() => toggleFillBeat(i)}
-                        title={i === 0 ? `Beat 1 — this tap` : `Beat ${i + 1}${fillSkip.has(i) ? ' — off' : ' — on'}`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                  </div>
+                  <FillBeatsChips fillBeats={fillBeats} fillSkip={fillSkip} onFillBeatsChange={setFillBeats} onToggleBeat={toggleFillBeat} />
                   <button className="btn-glue" onClick={() => fillToNextChord(selectedIdx)} title="Tap this chord onto every enabled beat up to the next chord">
                     ⚡ Fill beats
                   </button>
@@ -889,6 +987,18 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onClick={() => duplicateSections(selectedSectionIdxs)}
               title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
             >⎘ Duplicate</button>
+            <span className="popover-divider" />
+            <div className="fill-beats-control">
+              <span className="timeline-popover-hint">Fill every bare gap in this section ·</span>
+              <FillBeatsChips fillBeats={fillBeats} fillSkip={fillSkip} onFillBeatsChange={setFillBeats} onToggleBeat={toggleFillBeat} />
+              <button
+                className="btn-glue"
+                onClick={() => fillSectionsBeats(selectedSectionIdxs)}
+                title="Apply this beat fill to every gap between consecutive chords in this section that isn't already filled"
+              >
+                ⚡ Fill section
+              </button>
+            </div>
             <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete section</button>
           </>
         ) : !locked && selectedSectionIdxs.length > 1 ? (
@@ -900,6 +1010,18 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onClick={() => duplicateSections(selectedSectionIdxs)}
               title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
             >⎘ Duplicate</button>
+            <span className="popover-divider" />
+            <div className="fill-beats-control">
+              <span className="timeline-popover-hint">Fill every bare gap in these sections ·</span>
+              <FillBeatsChips fillBeats={fillBeats} fillSkip={fillSkip} onFillBeatsChange={setFillBeats} onToggleBeat={toggleFillBeat} />
+              <button
+                className="btn-glue"
+                onClick={() => fillSectionsBeats(selectedSectionIdxs)}
+                title="Apply this beat fill to every gap between consecutive chords in these sections that isn't already filled"
+              >
+                ⚡ Fill sections
+              </button>
+            </div>
             <button className="btn-delete" onClick={() => deleteSections(selectedSectionIdxs)}>× Delete sections</button>
           </>
         ) : (
