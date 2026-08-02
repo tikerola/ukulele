@@ -77,10 +77,15 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     [lyricsBlocks, sections]
   )
 
-  // Collapsing the chord/count-in tap buttons frees up vertical room between
-  // the lyrics editor and the timeline — handy while tagging lyrics with
-  // section names, which needs both on screen at once but no chord taps.
-  const [chordsCollapsed, setChordsCollapsed] = useState(false)
+  // Which of the two lower-right panels is showing — they share one column
+  // since they're never needed side by side (tagging lyrics with section
+  // names still only needs the Timeline's section bands, not the reference
+  // chart). Falls back to 'reference' if the lyrics tab is showing but the
+  // song has no sections yet to tag lyrics against (see the effect below).
+  const [setupTab, setSetupTab] = useState<'reference' | 'lyrics'>('reference')
+  useEffect(() => {
+    if (setupTab === 'lyrics' && sections.length === 0) setSetupTab('reference')
+  }, [setupTab, sections.length])
 
   useEffect(() => {
     setReferencePointer(p => Math.min(p, referenceItems.length))
@@ -304,7 +309,6 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
           >
             {isPlaying ? '⏸' : '▶'}
           </button>
-          <button className="btn-ghost" onClick={() => seekTo(Math.max(0, currentTime - 5))} title="Rewind 5 seconds">⏪ 5s</button>
           <button className="btn-ghost" onClick={onBack}>← New song</button>
         </div>
       </header>
@@ -312,27 +316,46 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
       <div className="recording-body-v2">
         <div ref={containerRef} className="yt-audio-only" />
 
-        <ReferenceGuide
-          text={referenceText}
-          onTextChange={setReferenceText}
-          items={referenceItems}
-          pointer={referencePointer}
-          onPointerChange={setReferencePointer}
-          locked={locked}
-        />
+        {/* Timeline spans the full width and takes whatever height is left
+            after the lower row — it's the actual editing surface, so it
+            gets first claim on space rather than sharing a column with
+            anything else. */}
+        <div className="creator-timeline-row">
+          {isReady && duration > 0 ? (
+            <Timeline
+              timeline={timeline}
+              duration={duration}
+              currentTime={currentTime}
+              selectedIdx={selectedIdx}
+              onSelectChange={setSelectedIdx}
+              onChange={setTimeline}
+              onSeek={seekTo}
+              locked={locked}
+              sections={sections}
+              lyricsBySection={lyricsBySection}
+              onSectionsChange={setSections}
+              onBeginEdit={recordHistory}
+              canUndo={past.length > 0}
+              canRedo={future.length > 0}
+              onUndo={undo}
+              onRedo={redo}
+              startOffset={startOffset}
+              endOffset={endOffset}
+              onStartOffsetChange={setStartOffset}
+              onEndOffsetChange={setEndOffset}
+            />
+          ) : (
+            <div className="timeline-loading">Waiting for video to load…</div>
+          )}
+        </div>
 
-        {sections.length > 0 && (
-          <LyricsEditor
-            text={lyricsText}
-            onTextChange={setLyricsText}
-            sectionNames={sectionNames}
-            nextSectionName={nextUntaggedSectionName}
-            locked={locked}
-          />
-        )}
-
-        <div className="tap-strip">
-          <div className="tap-strip-header">
+        {/* A fixed-height strip below the Timeline, split into the chord
+            charts (left) and one tabbed panel (right) that shows either the
+            Ultimate-Guitar-style reference chart or the lyrics editor —
+            they're never needed side by side, so sharing a column beats
+            permanently giving up screen space to whichever one is idle. */}
+        <div className="creator-lower-row">
+          <div className="creator-chords-col">
             <div className="tap-instructions">
               {locked
                 ? <>🔒 Timeline locked — unlock to make edits</>
@@ -341,15 +364,6 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
                   : <>Click a chord to record it at the current position {isPlaying ? '(playing)' : '(paused)'} · <kbd>1</kbd>–<kbd>{chords.length}</kbd> · <kbd>Space</kbd> play/pause · tap Count-in for a lead-in beat</>
               }
             </div>
-            <button
-              className="btn-small"
-              onClick={() => setChordsCollapsed(v => !v)}
-              title={chordsCollapsed ? 'Show the chord and count-in tap buttons' : 'Hide the chord and count-in tap buttons to make more room for the lyrics and timeline'}
-            >
-              {chordsCollapsed ? '▸ Show chords' : '▾ Hide chords'}
-            </button>
-          </div>
-          {!chordsCollapsed && (
             <ChordTapStrip
               chords={chords}
               chordDict={chordDict}
@@ -359,35 +373,47 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
               onTapChord={assignChord}
               onTapCountIn={assignCountIn}
             />
-          )}
-        </div>
+          </div>
 
-        {isReady && duration > 0 ? (
-          <Timeline
-            timeline={timeline}
-            duration={duration}
-            currentTime={currentTime}
-            selectedIdx={selectedIdx}
-            onSelectChange={setSelectedIdx}
-            onChange={setTimeline}
-            onSeek={seekTo}
-            locked={locked}
-            sections={sections}
-            lyricsBySection={lyricsBySection}
-            onSectionsChange={setSections}
-            onBeginEdit={recordHistory}
-            canUndo={past.length > 0}
-            canRedo={future.length > 0}
-            onUndo={undo}
-            onRedo={redo}
-            startOffset={startOffset}
-            endOffset={endOffset}
-            onStartOffsetChange={setStartOffset}
-            onEndOffsetChange={setEndOffset}
-          />
-        ) : (
-          <div className="timeline-loading">Waiting for video to load…</div>
-        )}
+          <div className="creator-tabs-col">
+            <div className="creator-tabs-bar">
+              <button
+                className={`creator-tab${setupTab === 'reference' ? ' creator-tab-active' : ''}`}
+                onClick={() => setSetupTab('reference')}
+              >
+                UG
+              </button>
+              {sections.length > 0 && (
+                <button
+                  className={`creator-tab${setupTab === 'lyrics' ? ' creator-tab-active' : ''}`}
+                  onClick={() => setSetupTab('lyrics')}
+                >
+                  Lyrics
+                </button>
+              )}
+            </div>
+            <div className="creator-tabs-body">
+              {setupTab === 'lyrics' && sections.length > 0 ? (
+                <LyricsEditor
+                  text={lyricsText}
+                  onTextChange={setLyricsText}
+                  sectionNames={sectionNames}
+                  nextSectionName={nextUntaggedSectionName}
+                  locked={locked}
+                />
+              ) : (
+                <ReferenceGuide
+                  text={referenceText}
+                  onTextChange={setReferenceText}
+                  items={referenceItems}
+                  pointer={referencePointer}
+                  onPointerChange={setReferencePointer}
+                  locked={locked}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

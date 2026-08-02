@@ -822,17 +822,105 @@ textarea { resize: vertical; }
 
 .recording-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
-/* overflow-y: auto (not the parent) so tall content — many chord-tap
-   buttons, a long timeline — scrolls in place instead of growing the page,
-   which would otherwise carry the header off-screen with it (and does,
-   immediately, since the reference textarea autofocuses on mount). */
+/* Timeline spans the full width on top — it's the actual editing surface,
+   so it gets first claim on height. Everything else (chord charts, and the
+   reference/lyrics tab pair) lives in a fixed-height strip below it, split
+   left/right, each half scrolling independently — so neither a long chord
+   list nor an in-progress lyrics edit can push the Timeline around.
+   Collapses to a single scrolling column below 700px; see the max-width
+   override at the bottom of this section. */
 .recording-body-v2 {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.creator-timeline-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.creator-lower-row {
+  flex-shrink: 0;
+  height: 320px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--border);
+}
+
+.creator-chords-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.creator-tabs-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+}
+
+.creator-tabs-bar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px 0;
+  flex-shrink: 0;
+}
+
+.creator-tab {
+  background: none;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.creator-tab:hover { color: var(--text); }
+
+.creator-tab-active {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.creator-tabs-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+@media (max-width: 700px) {
+  .recording-body-v2 {
+    overflow-y: auto;
+  }
+  .creator-timeline-row {
+    flex: none;
+    min-height: 260px;
+    max-height: 40vh;
+  }
+  .creator-lower-row {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+  .creator-chords-col {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .creator-chords-col, .creator-tabs-body {
+    max-height: 320px;
+  }
 }
 
 /* Mounts the (invisible) YouTube iframe for audio + time sync only —
@@ -996,6 +1084,34 @@ textarea { resize: vertical; }
   line-height: 1.5;
 }
 
+/* Same slim rounded-pill scrollbar as .timeline-scroll, just vertical and
+   inset against these textareas' own --bg instead of --surface. Shared by
+   both textareas — they're twin controls in the same tabbed panel, so one
+   styled and one left as the default browser scrollbar would look like an
+   oversight rather than a choice. */
+.lyrics-textarea, .reference-textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.lyrics-textarea::-webkit-scrollbar, .reference-textarea::-webkit-scrollbar {
+  width: 11px;
+}
+
+.lyrics-textarea::-webkit-scrollbar-track, .reference-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lyrics-textarea::-webkit-scrollbar-thumb, .reference-textarea::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 20px;
+  border: 3px solid var(--bg);
+}
+
+.lyrics-textarea::-webkit-scrollbar-thumb:hover, .reference-textarea::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
 .lyrics-editing-actions {
   display: flex;
   align-items: center;
@@ -1009,29 +1125,15 @@ textarea { resize: vertical; }
   font-size: 12px;
 }
 
-.tap-strip {
-  flex-shrink: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  padding: 14px 16px;
-}
-
-.tap-strip-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.tap-strip-header .btn-small { flex-shrink: 0; }
-
 .tap-instructions {
   font-size: 13px;
   color: var(--muted);
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 kbd {
@@ -1114,13 +1216,16 @@ kbd {
 
 /* ─── Timeline (Creator) ──────────────────────────────────── */
 
+/* Fills the rest of .creator-timeline-row's height — there's nothing else
+   in that row competing for space, whatever that row's own height ends up
+   being (see .creator-timeline-row's max-width override for narrow
+   screens). */
 .timeline-wrapper {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   background: var(--surface);
-  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  max-height: 40vh;
 }
 
 .timeline-loading {
@@ -1175,10 +1280,37 @@ kbd {
   color: var(--muted);
 }
 
+/* flex: 1 1 auto (not flex-shrink: 0 alone) so this grows to use whatever
+   extra vertical room .timeline-wrapper now has in the widescreen layout,
+   while still falling back to its natural content height when there's
+   nothing extra to fill (e.g. the narrow-screen layout below). */
 .timeline-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.timeline-scroll::-webkit-scrollbar {
+  height: 11px;
+}
+
+.timeline-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* The border (matched to the track's own background) insets the thumb
+   away from the track edges, so it reads as a slim rounded pill floating
+   in the gutter rather than a bar the full height of the scrollbar. */
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 20px;
+  border: 3px solid var(--surface);
+}
+
+.timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
 }
 
 .timeline-track {
