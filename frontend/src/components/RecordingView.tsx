@@ -272,6 +272,17 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button
+            className="btn-ghost"
+            onClick={() => onDone(timeline, {
+              timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
+              showNextChordPreview: initialSnapshot?.showNextChordPreview,
+            })}
+            disabled={timeline.length === 0}
+            title={timeline.length === 0 ? 'Record at least one chord first' : 'Switch to Playalong'}
+          >
+            ▶ Playalong
+          </button>
+          <button
             className={`btn-ghost${locked ? ' btn-ghost-active' : ''}`}
             onClick={() => setLocked(v => !v)}
             title={locked ? 'Unlock to allow editing' : 'Lock timeline to prevent accidental edits'}
@@ -377,19 +388,6 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
         ) : (
           <div className="timeline-loading">Waiting for video to load…</div>
         )}
-
-        <div className="tap-footer">
-          <button
-            className="btn-primary"
-            onClick={() => onDone(timeline, {
-              timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
-              showNextChordPreview: initialSnapshot?.showNextChordPreview,
-            })}
-            disabled={timeline.length === 0}
-          >
-            ▶ Playalong
-          </button>
-        </div>
       </div>
     </div>
   )

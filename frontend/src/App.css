@@ -622,6 +622,12 @@ textarea { resize: vertical; }
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+/* Smooths the size change between a row's active (defined size) and
+   inactive (shrunk) states — see SectionChordBoard.tsx's rowChordSize. */
+.chord-row-item svg {
+  transition: width 0.35s ease, height 0.35s ease;
+}
+
 .chord-row-item-active {
   border-color: rgba(88, 166, 255, 0.55);
   box-shadow: 0 0 0 4px rgba(88, 166, 255, 0.12), 0 0 24px rgba(88, 166, 255, 0.1);
@@ -1103,14 +1109,6 @@ kbd {
   color: var(--text);
   line-height: 1;
 }
-
-.tap-footer {
-  padding: 12px 14px;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.tap-footer .btn-primary { width: 100%; }
 
 .chord-count { font-weight: 400; color: var(--muted); }
 

@@ -30,6 +30,12 @@ interface Props {
 
 const BASE_CHORD_SIZE = 1.68
 const BASE_CHORD_GAP = 20
+// A section that wraps onto multiple rows shows only the row containing the
+// active chord at full (defined) size — every other row shrinks to this
+// fraction of it. Advancing to the next row swaps which one is full-size,
+// so a row that just lost activeness settles at exactly the size the next
+// row was already sitting at, rather than snapping to some other value.
+const INACTIVE_ROW_SCALE = 0.72
 
 // Splits `total` items into the fewest rows that fit `maxPerRow`, sized as
 // evenly as possible with any remainder going to the earlier rows — so a
@@ -131,10 +137,18 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
   }, [pulseKey, activeIdx, activeChordEndTime])
 
   let cursor = 0
-  const rowGroups = safeRows.map(count => {
+  const rowChordSizes: number[] = []
+  const rowGroups = safeRows.map((count, r) => {
     const start = cursor
     cursor += count
-    return displayGroups.slice(start, start + count).map(indices => {
+    const rowIndices = displayGroups.slice(start, start + count)
+    const isActiveRow = rowIndices.some(indices => indices.includes(activeIdx))
+    // Before the section's first chord goes active (activeIdx === -1, e.g.
+    // still in count-in), there's no "current" row yet to key off of —
+    // default to the top row instead of shrinking every row.
+    const rowChordSize = isActiveRow || (activeIdx === -1 && r === 0) ? CHORD_SIZE : CHORD_SIZE * INACTIVE_ROW_SCALE
+    rowChordSizes.push(rowChordSize)
+    return rowIndices.map(indices => {
       const anchor = entries[indices[0]]
       const dots = computeBeatDots(entries, indices)
       return (
@@ -143,7 +157,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           ref={el => { indices.forEach(i => { itemRefs.current[i] = el }) }}
           className={`chord-row-item${indices.includes(activeIdx) ? ' chord-row-item-active' : ''}`}
         >
-          <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
+          <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={rowChordSize} accentHeight={13.3} nameFontSize={20} />
           <div className="chord-progress-track">
             <div className="chord-progress-fill" data-progress-fill />
             <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
@@ -183,7 +197,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
         {rowGroups.map((group, r) => (
           <div className="section-chord-line" key={r}>
             {r === 0 && isFirstSection && !!countInEntries?.length && (
-              <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+              <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={rowChordSizes[0] ?? CHORD_SIZE} />
             )}
             {/* Invisible mirror of the next-chord preview, placed at the
                 opposite end of this row — same reasoning as .count-in-ghost:
@@ -212,7 +226,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
                 real count-in disappears. */}
             {r === 0 && isFirstSection && !!countInEntries?.length && (
               <div className="count-in-ghost" aria-hidden="true">
-                <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={CHORD_SIZE} />
+                <CountInDots entries={countInEntries} currentTime={currentTime} firstChordTime={entries[0]?.time ?? 0} chordSize={rowChordSizes[0] ?? CHORD_SIZE} />
               </div>
             )}
           </div>
