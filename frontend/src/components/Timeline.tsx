@@ -147,16 +147,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
 
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const lastScrolledSecondRef = useRef(-1)
-  // Set right before a click-to-seek so the scroll-into-view effect below
-  // can tell "the user just clicked somewhere off-screen" apart from
-  // "the playhead reached the edge during normal playback" — the former
-  // should snap the view to the clicked spot instantly (the user already
-  // knows where they clicked), the latter can ease into it. Without this
-  // distinction, every click far from the visible area animated the whole
-  // track sliding under the (already-correctly-positioned) playhead, which
-  // read as the playhead itself drifting before settling.
-  const justSeekedRef = useRef(false)
   const markerRefs = useRef<(HTMLDivElement | null)[]>([])
   const [markerRects, setMarkerRects] = useState<Record<number, { left: number; right: number }>>({})
 
@@ -208,7 +198,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   }
 
   function handleTrackClick(e: React.MouseEvent) {
-    justSeekedRef.current = true
     onSeek(timeFromClientX(e.clientX))
     onSelectChange(null)
     setRangeSel(null)
@@ -662,20 +651,23 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo])
 
-  const currentSecond = Math.floor(currentTime)
-  useEffect(() => {
-    if (currentSecond === lastScrolledSecondRef.current) return
-    lastScrolledSecondRef.current = currentSecond
-    const wasSeek = justSeekedRef.current
-    justSeekedRef.current = false
+  // Keeps the playhead centered in the visible area at all times, rather
+  // than only snapping the view once the playhead nears an edge — so the
+  // track continuously scrolls right under a fixed playhead as playback
+  // advances. Runs on every currentTime update (i.e. every animation frame
+  // during playback via useYouTubePlayer's tick loop), setting scrollLeft
+  // directly rather than an animated scrollTo — the per-frame updates
+  // already read as smooth motion, and an animated scroll re-triggered
+  // every frame would fight itself and never settle. Only reacts to
+  // currentTime/pps/trackWidth changes, so it never fights a manual scroll
+  // made while paused (currentTime is static then).
+  useLayoutEffect(() => {
     const container = scrollRef.current
     if (!container) return
     const playheadX = currentTime * pps
-    const { scrollLeft, clientWidth } = container
-    if (playheadX < scrollLeft + 60 || playheadX > scrollLeft + clientWidth - 60) {
-      container.scrollTo({ left: Math.max(0, playheadX - clientWidth / 2), behavior: wasSeek ? 'auto' : 'smooth' })
-    }
-  }, [currentSecond, currentTime, pps])
+    const maxScrollLeft = Math.max(0, trackWidth - container.clientWidth)
+    container.scrollLeft = Math.max(0, Math.min(playheadX - container.clientWidth / 2, maxScrollLeft))
+  }, [currentTime, pps, trackWidth])
 
   const tickStep = pickTickStep(pps)
   const ticks = useMemo(() => {
