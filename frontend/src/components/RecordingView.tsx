@@ -27,10 +27,11 @@ interface Props {
   initialSnapshot?: CreatorSnapshot
   onDone: (timeline: ChordEntry[], snapshot: CreatorSnapshot) => void
   onSnapshotChange: (snapshot: CreatorSnapshot) => void
+  onChordsChange: (chords: string[]) => void
   onBack: () => void
 }
 
-export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onBack }: Props) {
+export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onChordsChange, onBack }: Props) {
   const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
   // assignChord/assignCountIn read the latest time from here instead of
   // closing over `currentTime` directly, so they don't need it in their own
@@ -57,7 +58,20 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
   const [referencePointer, setReferencePointer] = useState(0)
   const referenceItems = useMemo(() => parseReference(referenceText), [referenceText])
 
+  // Chords the UG paste box found that aren't in the recording palette yet
+  // get appended (not replacing existing ones, so number-key shortcuts for
+  // chords already tapped onto the timeline don't shift).
+  const importChordsFromReference = useCallback((found: string[]) => {
+    onChordsChange([...chords, ...found])
+  }, [chords, onChordsChange])
+
   const [lyricsText, setLyricsText] = useState(initialSnapshot?.lyrics ?? '')
+  // Importing from the UG paste box adds to whatever's already in the
+  // Lyrics editor rather than clobbering it, in case the user pasted lyrics
+  // there separately first.
+  const importLyricsFromReference = useCallback((extracted: string) => {
+    setLyricsText(prev => (prev.trim().length === 0 ? extracted : prev + '\n\n' + extracted))
+  }, [])
   const sectionNames = useMemo(() => Array.from(new Set(sections.map(s => s.name))), [sections])
   const lyricsBlocks = useMemo(() => parseLyrics(lyricsText), [lyricsText])
   // Same matching Playalong uses to pick which lyric block a section shows
@@ -409,6 +423,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
                   pointer={referencePointer}
                   onPointerChange={setReferencePointer}
                   locked={locked}
+                  knownChords={chords}
+                  onImportChords={importChordsFromReference}
+                  lyricsText={lyricsText}
+                  onImportLyrics={importLyricsFromReference}
                 />
               )}
             </div>

@@ -543,6 +543,7 @@ export default function App() {
         initialSnapshot={creatorSnapshot ?? undefined}
         onDone={handleCreatorDone}
         onSnapshotChange={saveSnapshot}
+        onChordsChange={setChords}
         onBack={handleReset}
       />
     )

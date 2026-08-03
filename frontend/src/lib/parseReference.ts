@@ -23,11 +23,11 @@ const CHORD_TOKEN_RE = new RegExp(`^[A-G](?:#|b)?(?:${CHORD_QUALITY})?(?:/[A-G](
 
 const SECTION_HEADER_RE = /^\[([^\]]+)\]$/
 
-function tokenize(line: string): string[] {
+export function tokenize(line: string): string[] {
   return line.replace(/\|/g, ' ').trim().split(/\s+/).filter(Boolean)
 }
 
-function isChordLine(tokens: string[]): boolean {
+export function isChordLine(tokens: string[]): boolean {
   const relevant = tokens.filter(t => !IGNORE_TOKEN_RE.test(t))
   if (relevant.length === 0 || relevant.length > 16) return false
   const matched = relevant.filter(t => CHORD_TOKEN_RE.test(t))
@@ -61,4 +61,22 @@ export function parseReference(text: string): ReferenceItem[] {
   }
 
   return items
+}
+
+// Strips [Section] headers and chord lines out of the same pasted text,
+// leaving just the lyric lines — a starting point for the Lyrics editor so
+// the user doesn't have to retype (or re-paste and manually delete chords
+// from) what they already pasted here.
+export function extractLyricsOnly(text: string): string {
+  const lines: string[] = []
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    if (SECTION_HEADER_RE.test(line)) continue
+    if (isChordLine(tokenize(line))) continue
+    lines.push(line)
+  }
+
+  return lines.join('\n')
 }
