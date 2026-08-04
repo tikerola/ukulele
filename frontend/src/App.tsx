@@ -6,6 +6,7 @@ import { RecordingView } from './components/RecordingView'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
 import { useChordAudio } from './hooks/useChordAudio'
 import { useSectionChords } from './hooks/useChordSync'
+import { useScreenRecorder } from './hooks/useScreenRecorder'
 import { COUNT_IN_CHORD } from './lib/countIn'
 import { parseLyrics } from './lib/parseLyrics'
 import { matchLyricsToSections } from './lib/matchLyricsToSections'
@@ -263,6 +264,20 @@ function PlayalongView({
   const currentTimeRef = useRef(currentTime)
   currentTimeRef.current = currentTime
   const { playChord } = useChordAudio()
+  const { state: recordingState, error: recordingError, downloadUrl: recordingUrl, start: startRecording, stop: stopRecording, reset: resetRecording } = useScreenRecorder()
+  const recordRegionRef = useRef<HTMLDivElement | null>(null)
+  // Starting the recorder doesn't touch playback itself — without this, the
+  // user would have to manually rewind and hit Play right after granting the
+  // share prompt, which is exactly the fiddly hand-off this is meant to
+  // remove. Only fires once the browser actually granted the share (start()
+  // returns false on a cancelled/denied prompt).
+  const handleStartRecording = useCallback(async () => {
+    const started = await startRecording(recordRegionRef.current)
+    if (started) {
+      seekTo(startOffset ?? 0)
+      play()
+    }
+  }, [startRecording, seekTo, startOffset, play])
 
   // Count-in ticks are ordinary ChordEntry objects (tapped in Creator the
   // same way chords are) using a sentinel chord value — split them out here
@@ -285,9 +300,17 @@ function PlayalongView({
   const lyricsBySection = useMemo(() => matchLyricsToSections(lyricsBlocks, sections), [lyricsBlocks, sections])
   // Reserves the lyrics block's space on every section once the song uses
   // lyrics at all, not just the ones with a matched block, so the chord
-  // grid below always starts at the same y across the whole song — not
-  // only between a section's own 1-line vs 2-line lyrics.
+  // grid below always starts at the same y across the whole song.
   const hasLyrics = lyricsBySection.size > 0
+  // The tallest lyrics block in the song — LyricsCarousel reserves this many
+  // lines' worth of height on every section (not just its own actual line
+  // count), so a section with fewer lines (down to zero) leaves blank space
+  // below its text instead of shrinking the block and shifting the chord
+  // grid up.
+  const maxLyricsLines = useMemo(
+    () => Math.max(1, ...Array.from(lyricsBySection.values()).map(block => block.split('\n').length)),
+    [lyricsBySection]
+  )
   const nextLyrics = nextSection ? lyricsBySection.get(nextSection) : undefined
 
   // Re-clamps forward whenever playback lands before the start offset —
@@ -302,6 +325,29 @@ function PlayalongView({
     if (endOffset == null || !isPlaying) return
     if (currentTime >= endOffset) pause()
   }, [currentTime, endOffset, isPlaying, pause])
+
+  // Auto-stops a running recording the moment music playback stops for any
+  // reason — reaching the end, a manual pause, or YouTube buffering (a
+  // loading spinner in the middle of the take makes it unusable anyway, so
+  // there's no reason to keep rolling through one). "Armed" only once
+  // isPlaying has actually been observed true during this recording, so the
+  // brief window between clicking Record and playback actually kicking in
+  // (seekTo + play() both take a moment) doesn't itself read as "stopped."
+  const recordingArmedRef = useRef(false)
+  useEffect(() => {
+    if (recordingState !== 'recording') {
+      recordingArmedRef.current = false
+      return
+    }
+    if (isPlaying) {
+      recordingArmedRef.current = true
+      return
+    }
+    if (recordingArmedRef.current) {
+      recordingArmedRef.current = false
+      stopRecording()
+    }
+  }, [recordingState, isPlaying, stopRecording])
 
   const playPauseRef = useRef<HTMLButtonElement | null>(null)
 
@@ -387,12 +433,39 @@ function PlayalongView({
           >
             {showNextChordPreview ? '👁 Next chord' : '🙈 Next chord'}
           </button>
+          <div className="record-controls">
+            {recordingState === 'idle' && (
+              <button
+                className="btn-ghost"
+                onClick={handleStartRecording}
+                title="Record this screen as a video — pick &quot;This Tab&quot; and enable &quot;Share tab audio&quot; when your browser asks. Playback starts automatically once sharing begins."
+              >
+                ⏺ Record
+              </button>
+            )}
+            {recordingState === 'recording' && (
+              <button
+                className="btn-ghost btn-ghost-active"
+                onClick={stopRecording}
+                title="Stop recording — this also happens automatically once the song ends"
+              >
+                ⏹ Stop recording
+              </button>
+            )}
+            {recordingState === 'stopped' && recordingUrl && (
+              <>
+                <a className="btn-ghost" href={recordingUrl} download="ukesync-playalong.webm">⬇ Save video</a>
+                <button className="btn-ghost" onClick={resetRecording} title="Discard and record again">✕</button>
+              </>
+            )}
+            {recordingError && <span className="record-error">{recordingError}</span>}
+          </div>
           <button className="btn-ghost" onClick={onToCreator}>← Creator</button>
           <button className="btn-ghost" onClick={onReset}>New song</button>
         </div>
       </header>
 
-      <div className="player-layout">
+      <div className="player-layout" ref={recordRegionRef}>
         <div className="player-left">
           <div className={videoClass}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
@@ -416,6 +489,7 @@ function PlayalongView({
               lyrics={lyricsBySection.get(section)}
               nextLyrics={nextLyrics}
               hasLyrics={hasLyrics}
+              maxLyricsLines={maxLyricsLines}
               chordZoom={chordZoom}
               lyricsZoom={lyricsZoom}
             />

@@ -24,6 +24,7 @@ interface Props {
   lyrics?: string
   nextLyrics?: string
   hasLyrics?: boolean
+  maxLyricsLines?: number
   chordZoom?: number
   lyricsZoom?: number
 }
@@ -49,7 +50,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, chordZoom = 1, lyricsZoom = 1 }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, maxLyricsLines, chordZoom = 1, lyricsZoom = 1 }: Props) {
   const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
@@ -191,6 +192,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
           showPreview={showNextPreview}
           isLastChordActive={isLastChordActive}
           zoom={lyricsZoom}
+          maxLines={maxLyricsLines}
         />
       )}
       <div className="section-chord-grid" ref={gridRef} style={{ ['--chord-gap' as string]: `${BASE_CHORD_GAP * chordZoom}px` }}>

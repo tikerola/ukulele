@@ -6,6 +6,11 @@ interface Props {
   showPreview: boolean
   isLastChordActive: boolean
   zoom?: number
+  // Tallest lyrics block anywhere in the song, in lines. Reserved as this
+  // section's own text-block height regardless of how many lines it
+  // actually has, so the chord grid below never shifts as playback moves
+  // between sections with different lyric line counts.
+  maxLines?: number
 }
 
 // The section's lines minus its last are rendered as plain static rows; the
@@ -24,7 +29,7 @@ interface Props {
 // position and opacity, so it continues the same motion instead of
 // restarting it. Every other line is new content that was never on screen
 // before, so it just plays the normal per-line mount fade-in.
-export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordActive, zoom = 1 }: Props) {
+export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordActive, zoom = 1, maxLines = 1 }: Props) {
   const lines = lyrics ? lyrics.split('\n') : []
   const precedingLines = lines.slice(0, -1)
   const lastLine = lines.length ? lines[lines.length - 1] : null
@@ -86,12 +91,23 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
     })
   }, [lyrics])
 
-  if (!lyrics && !nextFirstLine) return null
-
+  // Always renders (never unmounts) once the song has lyrics anywhere —
+  // SectionChordBoard only mounts this component at all when the song has
+  // lyrics somewhere (see its `hasLyrics` gate). A section with no lyrics of
+  // its own, and nothing upcoming to peek at, still renders this block with
+  // an empty current-line slot. Combined with .lyrics-carousel-section's
+  // min-height below (sized off `maxLines`, the tallest lyrics block in the
+  // song), this section's text block always reserves the same height as the
+  // song's biggest one — whether it has zero lines, one line, or the max —
+  // so the chord grid below it never shifts as playback crosses section
+  // boundaries.
   const arrivedIsPreceding = precedingLines.length > 0
 
   return (
-    <div className="lyrics-carousel" style={{ ['--lyrics-zoom' as string]: zoom }}>
+    <div
+      className="lyrics-carousel"
+      style={{ ['--lyrics-zoom' as string]: zoom, ['--lyrics-max-lines' as string]: maxLines }}
+    >
       <div key={lyrics ?? ''} className="lyrics-carousel-section">
         {precedingLines.map((line, i) => (
           <div
@@ -116,7 +132,7 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
         ref={peekRef}
         className={`lyrics-carousel-slide lyrics-carousel-line lyrics-carousel-peek${peeking ? ' lyrics-carousel-peek-visible' : ''}`}
       >
-        <span className="next-arrow">➤</span> {nextFirstLine}
+        {nextFirstLine}
       </div>
     </div>
   )

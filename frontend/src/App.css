@@ -211,6 +211,33 @@ textarea { resize: vertical; }
   gap: 6px;
 }
 
+.record-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Overrides .btn-ghost-active's blue with red while recording — a distinct
+   color from every other toggle button in this header, since this is the
+   one state where clicking the wrong button (e.g. "New song") mid-recording
+   loses the take. */
+.record-controls .btn-ghost-active {
+  color: #ff4d4d !important;
+  border-color: #ff4d4d !important;
+  animation: record-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.record-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  max-width: 220px;
+}
+
 .zoom-label {
   font-size: 13px;
   opacity: 0.7;
@@ -478,6 +505,17 @@ textarea { resize: vertical; }
   min-height: 1.5em;
 }
 
+/* Reserves this section's own text block at the height of the song's
+   tallest lyrics block (--lyrics-max-lines, set from LyricsCarousel.tsx's
+   `maxLines` prop) rather than however many lines this section actually
+   has. Lines stack top-down and any leftover reserved space just sits
+   below them, so a 1-line (or 0-line) section's block is exactly as tall
+   as the song's biggest one — keeping the chord grid below it at a
+   constant y regardless of which section is playing. */
+.lyrics-carousel-section {
+  min-height: calc(var(--lyrics-max-lines, 1) * 42px * var(--lyrics-zoom, 1) * 1.5);
+}
+
 /* Plays whenever LyricsCarousel remounts a line (new key = a new section's
    lyrics) — genuinely new content that was never on screen before. The one
    line that was previously peeking skips this: LyricsCarousel.tsx drives
@@ -486,6 +524,11 @@ textarea { resize: vertical; }
    .lyrics-carousel-section so the peek row itself, which lives outside it
    and is never remounted, isn't affected. */
 .lyrics-carousel-section .lyrics-carousel-line {
+  /* Overrides .lyrics-carousel-slide's --muted default — only the current
+     section's own lines get the brighter treatment, so the peek row below
+     (outside .lyrics-carousel-section) stays at that muted gray as its one
+     remaining "this is upcoming" cue now that the arrow's gone. */
+  color: var(--text);
   animation: lyrics-line-fade-in 0.5s ease;
 }
 
@@ -504,7 +547,11 @@ textarea { resize: vertical; }
 }
 
 .lyrics-carousel-peek.lyrics-carousel-peek-visible {
-  opacity: 0.55;
+  /* Full opacity, at .lyrics-carousel-slide's plain --muted gray — that
+     color contrast against the current section's now-bright lines is the
+     whole "this one's upcoming" signal, so it no longer needs its own extra
+     dimming on top. */
+  opacity: 1;
   transform: translateY(0);
 }
 
