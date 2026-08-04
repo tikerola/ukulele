@@ -35,10 +35,10 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         <defs>
           <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
         </defs>
-        <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
-        <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
-        <text x={vW / 2} y={vH / 2 + 5} textAnchor="middle" fill="#666" fontSize={14}>?</text>
-        <text x={vW / 2} y={vH - 5} textAnchor="middle" fill="#7d8590" fontSize={nameFontSize - 1}>{chord}</text>
+        <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#3a2a1e" stroke="#55402f" />
+        <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#f4e6cc" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
+        <text x={vW / 2} y={vH / 2 + 5} textAnchor="middle" fill="#8a7256" fontSize={14}>?</text>
+        <text x={vW / 2} y={vH - 5} textAnchor="middle" fill="#b99b78" fontSize={nameFontSize - 1} fontFamily="'Fraunces', Georgia, serif">{chord}</text>
       </svg>
     )
   }
@@ -54,13 +54,13 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
       <defs>
         <clipPath id={clipId}><rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} /></clipPath>
       </defs>
-      <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#1e2433" stroke="#3d4560" />
-      <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#e6edf3" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
+      <rect x={1} y={1} width={vW - 2} height={vH - 2} rx={6} fill="#3a2a1e" stroke="#55402f" />
+      <rect x={1} y={1} width={vW - 2} height={accentHeight} fill={color} stroke="#f4e6cc" strokeOpacity={0.5} clipPath={`url(#${clipId})`} />
 
       {/* Nut */}
       {offset === 0
-        ? <rect x={strX[0]} y={nutY - 3} width={strX[STRINGS - 1] - strX[0]} height={3} fill="#c9d1d9" />
-        : <text x={strX[STRINGS - 1] + 6} y={nutY + fretH * 0.6} fontSize={8} fill="#7d8590">{offset + 1}fr</text>
+        ? <rect x={strX[0]} y={nutY - 3} width={strX[STRINGS - 1] - strX[0]} height={3} fill="#f4e6cc" />
+        : <text x={strX[STRINGS - 1] + 6} y={nutY + fretH * 0.6} fontSize={8} fill="#b99b78">{offset + 1}fr</text>
       }
 
       {/* Fret lines */}
@@ -68,7 +68,7 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         <line key={i}
           x1={strX[0]} y1={fretY(i)}
           x2={strX[STRINGS - 1]} y2={fretY(i)}
-          stroke="#3d4560" strokeWidth={1}
+          stroke="#55402f" strokeWidth={1}
         />
       ))}
 
@@ -77,7 +77,7 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         <line key={i}
           x1={x} y1={nutY}
           x2={x} y2={fretY(FRETS_SHOWN)}
-          stroke="#8b949e" strokeWidth={1.2}
+          stroke="#8a6f54" strokeWidth={1.2}
         />
       ))}
 
@@ -85,7 +85,7 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
       {frets.map((fret, i) => {
         if (fret === -1) {
           return (
-            <text key={i} x={strX[i]} y={topY + 4} textAnchor="middle" fill="#8b949e" fontSize={10}>×</text>
+            <text key={i} x={strX[i]} y={topY + 4} textAnchor="middle" fill="#8a6f54" fontSize={10}>×</text>
           )
         }
         return null
@@ -97,11 +97,11 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         const display = fret - offset
         if (display < 1 || display > FRETS_SHOWN) return null
         const cy = fretY(display - 1) + fretH / 2
-        return <circle key={i} cx={strX[i]} cy={cy} r={7} fill="#58a6ff" />
+        return <circle key={i} cx={strX[i]} cy={cy} r={7} fill="#f4e6cc" />
       })}
 
       {/* Chord name */}
-      <text x={vW / 2} y={vH - 5} textAnchor="middle" fill="#e6edf3" fontSize={nameFontSize} fontWeight="bold">
+      <text x={vW / 2} y={vH - 5} textAnchor="middle" fill="#f4e6cc" fontSize={nameFontSize} fontWeight="bold" fontFamily="'Fraunces', Georgia, serif">
         {chord}
       </text>
     </svg>

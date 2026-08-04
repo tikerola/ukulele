@@ -3,6 +3,7 @@ import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section, S
 import { ChordOverlay } from './components/ChordOverlay'
 import { SectionChordBoard } from './components/SectionChordBoard'
 import { RecordingView } from './components/RecordingView'
+import { formatTime } from './components/Timeline'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
 import { useChordAudio } from './hooks/useChordAudio'
 import { useSectionChords } from './hooks/useChordSync'
@@ -436,7 +437,7 @@ function PlayalongView({
           <div className="record-controls">
             {recordingState === 'idle' && (
               <button
-                className="btn-ghost"
+                className="btn-record"
                 onClick={handleStartRecording}
                 title="Record this screen as a video — pick &quot;This Tab&quot; and enable &quot;Share tab audio&quot; when your browser asks. Playback starts automatically once sharing begins."
               >
@@ -444,18 +445,28 @@ function PlayalongView({
               </button>
             )}
             {recordingState === 'recording' && (
-              <button
-                className="btn-ghost btn-ghost-active"
-                onClick={stopRecording}
-                title="Stop recording — this also happens automatically once the song ends"
-              >
-                ⏹ Stop recording
-              </button>
+              <>
+                {/* Elapsed time is just currentTime relative to where the take
+                    started — recording always tracks playback 1:1 (see the
+                    auto-start-on-record and auto-stop-on-pause effects above),
+                    so there's no separate clock to keep in sync. */}
+                <span className="rec-readout">
+                  <span className="rec-dot" aria-hidden="true" /> REC{' '}
+                  <span className="rec-readout-time">{formatTime(Math.max(0, currentTime - (startOffset ?? 0)))}</span>
+                </span>
+                <button
+                  className="btn-record"
+                  onClick={stopRecording}
+                  title="Stop recording — this also happens automatically once the song ends"
+                >
+                  ⏹ Stop
+                </button>
+              </>
             )}
             {recordingState === 'stopped' && recordingUrl && (
               <>
-                <a className="btn-ghost" href={recordingUrl} download="ukesync-playalong.webm">⬇ Save video</a>
-                <button className="btn-ghost" onClick={resetRecording} title="Discard and record again">✕</button>
+                <a className="btn-save" href={recordingUrl} download="ukesync-playalong.webm">⬇ Save video</a>
+                <button className="btn-discard" onClick={resetRecording} title="Discard and record again">✕</button>
               </>
             )}
             {recordingError && <span className="record-error">{recordingError}</span>}
