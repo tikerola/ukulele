@@ -42,11 +42,15 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
   // Applies the carried-over Playalong position exactly once, as soon as
   // the player can actually accept a seek — not in useState's initializer,
   // since the underlying YouTube player doesn't exist yet at that point.
+  // Explicitly paused right after — YouTube's player has a habit of
+  // resuming playback on its own once a seek lands, which would otherwise
+  // dump the user into Creator with the video already running.
   const appliedInitialSeekRef = useRef(false)
   useEffect(() => {
     if (!isReady || appliedInitialSeekRef.current || initialSeekTime == null) return
     appliedInitialSeekRef.current = true
     seekTo(initialSeekTime)
+    pause()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, initialSeekTime])
   // assignChord/assignCountIn read the latest time from here instead of
@@ -385,6 +389,14 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
           >
             {isPlaying ? '⏸' : '▶'}
           </button>
+          <button
+            className="btn-ghost"
+            onClick={() => seekTo(startOffset ?? 0)}
+            disabled={!isReady}
+            title="Rewind to the start"
+          >
+            ⏮ Start
+          </button>
           <button className="btn-ghost" onClick={onBack}>← New song</button>
         </div>
       </header>
@@ -406,6 +418,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
               onSelectChange={setSelectedIdx}
               onChange={setTimeline}
               onSeek={seekTo}
+              onPlay={play}
               locked={locked}
               sections={sections}
               lyricsBySection={lyricsBySection}

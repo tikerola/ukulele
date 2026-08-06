@@ -12,6 +12,10 @@ interface Props {
   onSelectChange: (idx: number | null) => void
   onChange: (timeline: ChordEntry[]) => void
   onSeek: (time: number) => void
+  // Double-clicking the track starts playback from wherever was clicked —
+  // optional since not every embedder necessarily wants this (Timeline
+  // doesn't otherwise know about play/pause at all).
+  onPlay?: () => void
   locked: boolean
   sections: Section[]
   lyricsBySection?: Map<Section, string>
@@ -117,7 +121,7 @@ function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }
   )
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, onPlay, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   // Captured at the start of a marker drag: which section(s) currently treat
@@ -224,6 +228,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setSelectedSectionIdxs([])
     setSplitPick(null)
     setRenamingIdx(null)
+  }
+
+  // The two clicks making up the double-click already each ran
+  // handleTrackClick above (seeking to wherever was clicked), so this just
+  // starts playback from there.
+  function handleTrackDoubleClick() {
+    onPlay?.()
   }
 
   function deleteSections(idxs: number[]) {
@@ -659,10 +670,21 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // and committed together as a single undo step, rather than calling
   // fillToNextChord repeatedly (which would each read a stale `timeline`
   // prop from before the others' entries were added).
+  //
+  // The section's own last chord has no *next* chord inside the section to
+  // fill toward, so the loop above never touches it — left alone, it'd be
+  // the one chord in the section that doesn't get its beats filled. It
+  // gets the same treatment here, reusing the beat duration from the gap
+  // right before it (the section's own already-established tempo) rather
+  // than needing a real "next" chord to divide against, and stopping short
+  // of whatever the next real timeline entry is (if any) so it can never
+  // run into another section. The section's endTime is extended to cover
+  // the new beats, same as fillToNextChord does for a single chord.
   function fillSectionsBeats(idxs: number[]) {
     if (locked || fillBeats < 2 || idxs.length === 0) return
     const groups = buildChordGroups(timeline)
     const newEntries: ChordEntry[] = []
+    const sectionEndUpdates = new Map<Section, number>()
     idxs.forEach(si => {
       const section = sections[si]
       if (!section) return
@@ -673,10 +695,26 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
         if (nextIdx !== startIdx + 1) continue
         newEntries.push(...fillBeatsBetween(timeline[startIdx], timeline[nextIdx]))
       }
+      if (anchors.length < 2) return
+      const lastIdx = anchors[anchors.length - 1]
+      const prevIdx = anchors[anchors.length - 2]
+      const lastGroup = groups.find(g => g[0] === lastIdx)
+      if (!lastGroup || lastGroup.length > 1) return // already has its own trailing fill
+      const step = (timeline[lastIdx].time - timeline[prevIdx].time) / fillBeats
+      const boundTime = timeline[lastIdx + 1]?.time ?? null
+      const syntheticNext: ChordEntry = { time: timeline[lastIdx].time + step * fillBeats, chord: timeline[lastIdx].chord }
+      const trailing = fillBeatsBetween(timeline[lastIdx], syntheticNext).filter(e => boundTime === null || e.time < boundTime)
+      if (trailing.length > 0) {
+        newEntries.push(...trailing)
+        sectionEndUpdates.set(section, trailing[trailing.length - 1].time)
+      }
     })
     if (newEntries.length === 0) return
     onBeginEdit()
     commitTimeline([...timeline, ...newEntries])
+    if (sectionEndUpdates.size > 0) {
+      onSectionsChange(sections.map(s => sectionEndUpdates.has(s) ? { ...s, endTime: sectionEndUpdates.get(s)! } : s))
+    }
     setFillSkip(new Set())
   }
 
@@ -926,6 +964,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           ref={trackRef}
           style={{ width: trackWidth }}
           onClick={handleTrackClick}
+          onDoubleClick={handleTrackDoubleClick}
           onPointerMove={e => { handleMarkerPointerMove(e); handleSectionPointerMove(e); handleTrimPointerMove(e) }}
           onPointerUp={() => { handleMarkerPointerUp(); handleSectionPointerUp(); handleTrimPointerUp() }}
         >
@@ -1169,7 +1208,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               <button
                 className="btn-glue"
                 onClick={() => fillSectionsBeats(selectedSectionIdxs)}
-                title="Apply this beat fill to every gap between consecutive chords in this section that isn't already filled"
+                title="Apply this beat fill to every gap between consecutive chords in this section that isn't already filled — including the section's last chord, using its own established tempo"
               >
                 ⚡ Fill section
               </button>
@@ -1192,7 +1231,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               <button
                 className="btn-glue"
                 onClick={() => fillSectionsBeats(selectedSectionIdxs)}
-                title="Apply this beat fill to every gap between consecutive chords in these sections that isn't already filled"
+                title="Apply this beat fill to every gap between consecutive chords in these sections that isn't already filled — including each section's last chord, using its own established tempo"
               >
                 ⚡ Fill sections
               </button>
