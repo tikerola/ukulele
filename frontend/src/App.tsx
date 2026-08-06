@@ -103,7 +103,7 @@ function InputForm({ onStart, isLoading, savedSongs, onDeleteSaved }: { onStart:
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const chords = parseChords(chordText)
-    if (!url.trim() || chords.length === 0) return
+    if (!url.trim()) return
 
     if (mode === 'new') {
       const vid = extractVideoId(url.trim())
@@ -182,7 +182,7 @@ function InputForm({ onStart, isLoading, savedSongs, onDeleteSaved }: { onStart:
         </div>
 
         <div className="field">
-          <label htmlFor={chordsId}>Chords in this song</label>
+          <label htmlFor={chordsId}>Chords in this song <span className="field-optional">(optional)</span></label>
           <textarea
             id={chordsId}
             rows={3}
@@ -193,7 +193,7 @@ function InputForm({ onStart, isLoading, savedSongs, onDeleteSaved }: { onStart:
           <span className="field-hint">
             {usingSaved
               ? 'Add more chords here if the recording needs them — you can record the new ones onto the timeline in Creator mode'
-              : "List every unique chord — you'll record them onto the timeline in Creator mode"}
+              : "List every unique chord, or leave this blank and import them from Ultimate Guitar (or add them by hand) once you're in Creator mode"}
           </span>
         </div>
 
@@ -218,6 +218,70 @@ function InputForm({ onStart, isLoading, savedSongs, onDeleteSaved }: { onStart:
 
 // ─── Playalong mode ─────────────────────────────────────────────
 
+// Stands in for the YouTube scrubber while the video is hidden — otherwise
+// hiding it (to make room for the chord charts) would leave no way to jump
+// around the song short of the 2-second ArrowLeft/ArrowRight nudge. The bar
+// spans only the trimmed startOffset–endOffset range (the part Playalong
+// actually plays), not the full video — the excluded intro/outro isn't
+// shown at all, so there's nowhere on the bar to click or drag into it.
+function PlaybackBar({ currentTime, duration, startOffset, endOffset, onSeek }: {
+  currentTime: number
+  duration: number
+  startOffset?: number
+  endOffset?: number
+  onSeek: (time: number) => void
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  const rangeStart = startOffset ?? 0
+  const rangeEnd = endOffset ?? duration
+  const rangeDuration = Math.max(0, rangeEnd - rangeStart)
+
+  const timeFromClientX = useCallback((clientX: number) => {
+    const el = trackRef.current
+    if (!el || rangeDuration <= 0) return rangeStart
+    const rect = el.getBoundingClientRect()
+    const ratio = rect.width > 0 ? Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1) : 0
+    return rangeStart + ratio * rangeDuration
+  }, [rangeStart, rangeDuration])
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+    onSeek(timeFromClientX(e.clientX))
+  }
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!dragging) return
+    onSeek(timeFromClientX(e.clientX))
+  }
+  function handlePointerUp() {
+    setDragging(false)
+  }
+
+  const pct = rangeDuration > 0 ? Math.min(100, Math.max(0, ((currentTime - rangeStart) / rangeDuration) * 100)) : 0
+
+  return (
+    <div className="playback-bar">
+      <div
+        className="playback-bar-track"
+        ref={trackRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        title="Click or drag to jump to a different part of the song"
+      >
+        <div className="playback-bar-fill" style={{ width: `${pct}%` }} />
+        <div className="playback-bar-handle" style={{ left: `${pct}%` }} />
+      </div>
+      <div className="playback-bar-time">
+        <span>{formatTime(currentTime)}</span>
+        <span>{formatTime(rangeEnd)}</span>
+      </div>
+    </div>
+  )
+}
+
 function PlayalongView({
   videoId,
   timeline,
@@ -240,7 +304,7 @@ function PlayalongView({
   endOffset?: number
   showNextChordPreview: boolean
   onShowNextChordPreviewChange: (value: boolean) => void
-  onToCreator: () => void
+  onToCreator: (time: number) => void
   onReset: () => void
 }) {
   const [soundOn, setSoundOn] = useState(false)
@@ -471,7 +535,7 @@ function PlayalongView({
             )}
             {recordingError && <span className="record-error">{recordingError}</span>}
           </div>
-          <button className="btn-ghost" onClick={onToCreator}>← Creator</button>
+          <button className="btn-ghost" onClick={() => onToCreator(currentTime)}>← Creator</button>
           <button className="btn-ghost" onClick={onReset}>New song</button>
         </div>
       </header>
@@ -482,12 +546,14 @@ function PlayalongView({
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
+          {videoHidden && isReady && (
+            <PlaybackBar currentTime={currentTime} duration={duration} startOffset={startOffset} endOffset={endOffset} onSeek={seekTo} />
+          )}
           {section ? (
             <SectionChordBoard
               section={section}
               entries={entries}
               activeIdx={activeIdx}
-              nextSection={nextSection}
               nextChord={nextChord}
               activeChordEndTime={activeChordEndTime}
               currentTime={currentTime}
@@ -533,6 +599,11 @@ export default function App() {
   const [chordDict, setChordDict] = useState<ChordDictionary>({})
   const [creatorSnapshot, setCreatorSnapshot] = useState<CreatorSnapshot | null>(null)
   const [savedSongs, setSavedSongs] = useState<SavedSong[]>([])
+  // Where Creator's video should seek to on mount — set when coming back
+  // from Playalong mid-song, so the timeline playhead (which just mirrors
+  // the video's current time) picks up right where playback was left off
+  // instead of resetting to the start.
+  const [creatorSeekTime, setCreatorSeekTime] = useState<number | undefined>(undefined)
 
   const refreshSavedSongs = useCallback(() => {
     fetch(`${API}/songs`)
@@ -554,6 +625,7 @@ export default function App() {
     if (!vid) { setError('Could not extract video ID from URL'); return }
     setError(null)
     setIsLoading(true)
+    setCreatorSeekTime(undefined)
     let snapshot: CreatorSnapshot | undefined
     try {
       const res = await fetch(`${API}/songs/${vid}`)
@@ -598,6 +670,7 @@ export default function App() {
     setTimeline(taps)
     setCreatorSnapshot(snapshot)
     setAppState('playalong')
+    setCreatorSeekTime(undefined)
     saveSnapshot(snapshot)
   }
 
@@ -615,6 +688,7 @@ export default function App() {
     setChords([])
     setTimeline([])
     setCreatorSnapshot(null)
+    setCreatorSeekTime(undefined)
     setError(null)
     refreshSavedSongs()
   }
@@ -626,6 +700,7 @@ export default function App() {
         chords={chords}
         chordDict={chordDict}
         initialSnapshot={creatorSnapshot ?? undefined}
+        initialSeekTime={creatorSeekTime}
         onDone={handleCreatorDone}
         onSnapshotChange={saveSnapshot}
         onChordsChange={setChords}
@@ -646,7 +721,7 @@ export default function App() {
         endOffset={creatorSnapshot?.endOffset}
         showNextChordPreview={creatorSnapshot?.showNextChordPreview ?? true}
         onShowNextChordPreviewChange={setShowNextChordPreview}
-        onToCreator={() => setAppState('creator')}
+        onToCreator={time => { setCreatorSeekTime(time); setAppState('creator') }}
         onReset={handleReset}
       />
     )

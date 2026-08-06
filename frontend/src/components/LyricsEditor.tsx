@@ -41,6 +41,28 @@ export function LyricsEditor({ text, onTextChange, sectionNames, nextSectionName
     onTextChange(text.slice(0, start) + tag + text.slice(end))
   }
 
+  // Double-clicking the lyrics drops the next suggested section tag right
+  // where the click landed — a faster path than reaching for the button row
+  // while reading down through pasted lyrics. Double-click already moves
+  // the caret to the start of the clicked word (the browser's own
+  // word-select), so that's what "the place of the click" resolves to. The
+  // tag always lands on its own line: a leading newline is added unless the
+  // click was already at the very start of a line, so it can't run into
+  // whatever text precedes it. A no-op once every section is tagged
+  // (nextSectionName is null) — double-click then just selects a word, as
+  // it normally would.
+  function handleDoubleClick() {
+    if (!nextSectionName) return
+    const el = textareaRef.current
+    const pos = el?.selectionStart ?? text.length
+    const before = text.slice(0, pos)
+    const after = text.slice(pos)
+    const leadingNewline = before.length > 0 && !before.endsWith('\n') ? '\n' : ''
+    const tag = `${leadingNewline}[${nextSectionName}]\n`
+    pendingSelectionRef.current = before.length + tag.length
+    onTextChange(before + tag + after)
+  }
+
   // Scrolls so the most recently added [SectionName] line lands at the very
   // top of the textarea's viewport — that's exactly where the not-yet-tagged
   // lyrics that need the *next* tag start, so this saves hunting for it by
@@ -86,8 +108,10 @@ export function LyricsEditor({ text, onTextChange, sectionNames, nextSectionName
           className="lyrics-textarea"
           rows={6}
           placeholder="Paste the song's lyrics here, and use the buttons above to tag each part with the section it belongs to…"
+          title={nextSectionName ? `Double-click anywhere to drop in a [${nextSectionName}] tag there` : undefined}
           value={text}
           onChange={e => onTextChange(e.target.value)}
+          onDoubleClick={handleDoubleClick}
           autoFocus
         />
         <div className="lyrics-editing-actions">

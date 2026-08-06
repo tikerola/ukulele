@@ -16,6 +16,12 @@ interface Props {
   sections: Section[]
   lyricsBySection?: Map<Section, string>
   onSectionsChange: (sections: Section[]) => void
+  // Fired when splitSectionAt carves `section` in two, naming the new
+  // first half `newFirstName` — lets the caller carry over `section`'s
+  // lyrics tag (if any) to the new left half. Not fired for the right half,
+  // since there's no way to know which of the original lyric lines belong
+  // to it.
+  onSectionSplit?: (section: Section, newFirstName: string) => void
   onBeginEdit: () => void
   canUndo: boolean
   canRedo: boolean
@@ -108,7 +114,7 @@ function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }
   )
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   // Captured at the start of a marker drag: which section(s) currently treat
@@ -132,6 +138,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     originalSection: Section
   } | null>(null)
   const [trimDrag, setTrimDrag] = useState<'start' | 'end' | null>(null)
+  // Index into `sections` of a section currently in "pick a split point"
+  // mode — armed by the ✂ Split button, disarmed by clicking a valid chord
+  // in that section (which performs the split), Esc, or any other
+  // selection-changing click.
+  const [splitPick, setSplitPick] = useState<number | null>(null)
   // Remembered across sessions (not just within one) — once you've settled
   // on e.g. "8 beats, skip the offbeats" for how you tap in a song, that's
   // almost always still what you want the next time you open Creator.
@@ -203,6 +214,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
+    setSplitPick(null)
   }
 
   function deleteSections(idxs: number[]) {
@@ -231,9 +243,50 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     return indices
   }
 
+  // Splits a section into two at a chosen chord — "A1" becomes "A1,1" and
+  // "A1,2", the first running up to (and including) the chord just before
+  // `entryPos` and the second starting at it. `entryPos` indexes into
+  // `sectionEntryIndices(section)`, not the timeline directly, so it must
+  // land strictly inside that list (0 would leave the first half empty).
+  function splitSectionAt(idx: number, entryPos: number) {
+    if (locked) return
+    const section = sections[idx]
+    if (!section) return
+    const entries = sectionEntryIndices(section)
+    if (entryPos <= 0 || entryPos >= entries.length) return
+
+    onBeginEdit()
+    const first: Section = {
+      name: `${section.name},1`,
+      startTime: section.startTime,
+      endTime: timeline[entries[entryPos - 1]].time,
+    }
+    const second: Section = {
+      name: `${section.name},2`,
+      startTime: timeline[entries[entryPos]].time,
+      endTime: section.endTime,
+    }
+    const nextSections = [...sections.filter((_, si) => si !== idx), first, second]
+      .sort((a, b) => a.startTime - b.startTime)
+    onSectionSplit?.(section, first.name)
+    onSectionsChange(nextSections)
+    setSelectedSectionIdxs([first, second].map(s => nextSections.indexOf(s)))
+  }
+
+  // Arms "pick a split point" mode — the next click on one of this
+  // section's chords (other than its first) performs the split there. Lets
+  // the split land anywhere in the section instead of always the midpoint.
+  function beginSplitPick(idx: number) {
+    if (locked) return
+    const section = sections[idx]
+    if (!section || sectionEntryIndices(section).length < 2) return
+    setSplitPick(idx)
+  }
+
   function handleSectionPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
+    if (splitPick !== null) { setSplitPick(null); return }
     onBeginEdit()
     const section = sections[idx]
     const entryIndices = sectionEntryIndices(section)
@@ -362,6 +415,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
+    setSplitPick(null)
   }
 
   function handleTrimPointerMove(e: React.PointerEvent) {
@@ -378,6 +432,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleMarkerPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
+    if (splitPick !== null) {
+      const section = sections[splitPick]
+      if (section) {
+        const pos = sectionEntryIndices(section).indexOf(idx)
+        if (pos > 0) splitSectionAt(splitPick, pos)
+      }
+      setSplitPick(null)
+      return
+    }
     onBeginEdit()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragIdx(idx)
@@ -398,6 +461,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     e.stopPropagation()
     if (locked) return
     if (!e.shiftKey) return
+    setSplitPick(null)
     const anchor = anchorIdx ?? idx
     const [lo, hi] = anchor <= idx ? [anchor, idx] : [idx, anchor]
     setAnchorIdx(anchor)
@@ -417,6 +481,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
+    setSplitPick(null)
     if (e.shiftKey) {
       setSelectedSectionIdxs(prev => prev.includes(idx)
         ? prev.filter(i => i !== idx)
@@ -595,6 +660,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSectionsChange([])
     onSelectChange(null)
     setSelectedSectionIdxs([])
+    setSplitPick(null)
   }
 
   function handleUndo() {
@@ -602,6 +668,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
+    setSplitPick(null)
     onUndo()
   }
 
@@ -610,6 +677,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
+    setSplitPick(null)
     onRedo()
   }
 
@@ -629,6 +697,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
         return
       }
       if (e.key === 'Escape') {
+        if (splitPick !== null) { setSplitPick(null); return }
         setRangeSel(null)
         setAnchorIdx(null)
         setSelectedSectionIdxs([])
@@ -649,7 +718,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo])
+  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo, splitPick])
 
   // Keeps the playhead centered in the visible area at all times, rather
   // than only snapping the view once the playhead nears an edge — so the
@@ -719,7 +788,15 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setSelectedSectionIdxs([])
     setAnchorIdx(null)
     setRangeSel(freeRanges)
+    setSplitPick(null)
   }
+
+  // While a section is armed for split-picking, every one of its chords
+  // except the first is a valid place to click — the first would leave an
+  // empty section on one side.
+  const splitCandidates = splitPick !== null && sections[splitPick]
+    ? new Set(sectionEntryIndices(sections[splitPick]).slice(1))
+    : null
 
   return (
     <div className="timeline-wrapper">
@@ -899,11 +976,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               <div
                 key={idx}
                 ref={el => { markerRefs.current[idx] = el }}
-                className={`timeline-marker${isCountIn ? ' timeline-marker-count-in' : ''}${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel?.some(([lo, hi]) => idx >= lo && idx <= hi) ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}`}
+                className={`timeline-marker${isCountIn ? ' timeline-marker-count-in' : ''}${selectedIdx === idx ? ' timeline-marker-selected' : ''}${rangeSel?.some(([lo, hi]) => idx >= lo && idx <= hi) ? ' timeline-marker-in-range' : ''}${locked ? ' timeline-marker-locked' : ''}${splitCandidates ? (splitCandidates.has(idx) ? ' timeline-marker-split-candidate' : ' timeline-marker-split-inactive') : ''}`}
                 style={{ left: entry.time * pps }}
                 onPointerDown={e => handleMarkerPointerDown(e, idx)}
                 onClick={e => handleMarkerClick(e, idx)}
-                title={locked ? `${label} @ ${formatTime(entry.time)}` : `${label} @ ${formatTime(entry.time)} — drag to move, click to select, shift+click to select a range`}
+                title={splitCandidates
+                  ? (splitCandidates.has(idx) ? `Split before ${label} @ ${formatTime(entry.time)}` : `${label} @ ${formatTime(entry.time)}`)
+                  : (locked ? `${label} @ ${formatTime(entry.time)}` : `${label} @ ${formatTime(entry.time)} — drag to move, click to select, shift+click to select a range`)}
               >
                 {isCountIn ? '⏱' : entry.chord}
               </div>
@@ -936,6 +1015,12 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <button className="btn-small" disabled={!sectionName.trim()} onClick={() => applySection(sectionName.trim())}>Add</button>
             <button className="btn-delete" onClick={() => deleteRanges(rangeSel)}>× Delete</button>
             <button className="btn-ghost" onClick={() => { setRangeSel(null); setSectionName('') }}>Cancel</button>
+          </>
+        ) : splitPick !== null && sections[splitPick] ? (
+          <>
+            <span className="timeline-popover-chord">Splitting {sections[splitPick].name}</span>
+            <span className="timeline-popover-hint">Click a highlighted chord below to split there · Esc to cancel</span>
+            <button className="btn-ghost" onClick={() => setSplitPick(null)}>Cancel</button>
           </>
         ) : selectedIdx !== null && timeline[selectedIdx] ? (
           <>
@@ -979,6 +1064,12 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onClick={() => duplicateSections(selectedSectionIdxs)}
               title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
             >⎘ Duplicate</button>
+            <button
+              className="btn-small"
+              disabled={sectionEntryIndices(sections[selectedSectionIdxs[0]]).length < 2}
+              onClick={() => beginSplitPick(selectedSectionIdxs[0])}
+              title="Pick a chord to split this section at — the section becomes two, named e.g. ‘Name,1’ and ‘Name,2’"
+            >✂ Split…</button>
             <span className="popover-divider" />
             <div className="fill-beats-control">
               <span className="timeline-popover-hint">Fill every bare gap in this section ·</span>

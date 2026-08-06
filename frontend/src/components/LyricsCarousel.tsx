@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface Props {
   lyrics?: string
@@ -11,6 +11,58 @@ interface Props {
   // actually has, so the chord grid below never shifts as playback moves
   // between sections with different lyric line counts.
   maxLines?: number
+}
+
+// A line's height is only ever exactly one row (see AutosizeLyricLine) —
+// nothing here can push it taller — so this is a hard cap, not just a
+// starting minimum: the chord grid below never moves, regardless of lyrics.
+const LYRICS_LINE_MIN_SCALE = 0.55
+
+function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallback<T> {
+  return node => {
+    for (const ref of refs) {
+      if (!ref) continue
+      if (typeof ref === 'function') ref(node)
+      else (ref as React.MutableRefObject<T | null>).current = node
+    }
+  }
+}
+
+// Shrinks this line's own font-size just enough to keep it on one row —
+// long lines (a rap verse's lines run much longer than a typical chorus
+// line) would otherwise wrap onto a second row, which .lyrics-carousel-line
+// and .lyrics-carousel-section's fixed heights don't have room for. Re-measures
+// against the CSS class's own (zoom-scaled) base size every time, rather than
+// compounding against whatever scale was already applied, so a shorter line
+// swapped in later isn't stuck shrunk from a previous long one.
+function AutosizeLyricLine({ text, measureKey, className, lineRef }: {
+  text: string
+  // Bumped by the caller whenever something the measurement depends on
+  // changes but `text` itself doesn't — zoom, or the container being
+  // resized — to force a re-measure.
+  measureKey: number | string
+  className: string
+  lineRef?: React.Ref<HTMLDivElement>
+}) {
+  const localRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = localRef.current
+    if (!el) return
+    el.style.fontSize = ''
+    const natural = el.scrollWidth
+    const available = el.clientWidth
+    if (available > 0 && natural > available) {
+      const base = parseFloat(getComputedStyle(el).fontSize)
+      const scale = Math.max(LYRICS_LINE_MIN_SCALE, available / natural)
+      el.style.fontSize = `${base * scale}px`
+    }
+  }, [text, measureKey])
+
+  return (
+    <div ref={mergeRefs(localRef, lineRef)} className={className}>
+      {text}
+    </div>
+  )
 }
 
 // The section's lines minus its last are rendered as plain static rows; the
@@ -35,6 +87,20 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
   const lastLine = lines.length ? lines[lines.length - 1] : null
   const nextFirstLine = nextLyrics?.split('\n')[0] ?? null
   const peeking = showPreview && isLastChordActive && !!nextFirstLine
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  // Bumped on every resize of the lyrics block itself (window resize, chord
+  // zoom changing the layout width, sidebar toggling, etc.) so every line's
+  // autosize effect re-measures against the new available width — a line
+  // that fit fine before a resize could now be too wide, or vice versa.
+  const [resizeGen, setResizeGen] = useState(0)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setResizeGen(g => g + 1))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const peekRef = useRef<HTMLDivElement>(null)
   const peekStateRef = useRef<{ rect: DOMRect; opacity: number } | null>(null)
@@ -96,44 +162,47 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
   // lyrics somewhere (see its `hasLyrics` gate). A section with no lyrics of
   // its own, and nothing upcoming to peek at, still renders this block with
   // an empty current-line slot. Combined with .lyrics-carousel-section's
-  // min-height below (sized off `maxLines`, the tallest lyrics block in the
-  // song), this section's text block always reserves the same height as the
-  // song's biggest one — whether it has zero lines, one line, or the max —
-  // so the chord grid below it never shifts as playback crosses section
-  // boundaries.
+  // fixed height below (sized off `maxLines`, the tallest lyrics block in
+  // the song), this section's text block always reserves exactly the same
+  // height as the song's biggest one — whether it has zero lines, one line,
+  // or the max — so the chord grid below it never shifts as playback moves
+  // between sections, no matter how long any line's text is (AutosizeLyricLine
+  // keeps every line to one row, and the fixed height + overflow:hidden below
+  // is a hard backstop even so).
   const arrivedIsPreceding = precedingLines.length > 0
 
   return (
     <div
+      ref={containerRef}
       className="lyrics-carousel"
       style={{ ['--lyrics-zoom' as string]: zoom, ['--lyrics-max-lines' as string]: maxLines }}
     >
       <div key={lyrics ?? ''} className="lyrics-carousel-section">
         {precedingLines.map((line, i) => (
-          <div
+          <AutosizeLyricLine
             key={i}
-            ref={i === 0 && arrivedIsPreceding ? arrivedRef : undefined}
+            text={line}
+            measureKey={`${zoom}:${resizeGen}`}
+            lineRef={i === 0 && arrivedIsPreceding ? arrivedRef : undefined}
             className="lyrics-carousel-slide lyrics-carousel-line"
-          >
-            {line}
-          </div>
+          />
         ))}
-        <div
-          ref={arrivedIsPreceding ? undefined : arrivedRef}
+        <AutosizeLyricLine
+          text={lastLine ?? ''}
+          measureKey={`${zoom}:${resizeGen}`}
+          lineRef={arrivedIsPreceding ? undefined : arrivedRef}
           className="lyrics-carousel-slide lyrics-carousel-line lyrics-carousel-current-line"
-        >
-          {lastLine}
-        </div>
+        />
       </div>
       {/* Reserved (but invisible) even while not peeking, so revealing it
           never grows this container — which would otherwise push the chord
           grid below it down and back up on every peek. */}
-      <div
-        ref={peekRef}
+      <AutosizeLyricLine
+        text={nextFirstLine ?? ''}
+        measureKey={`${zoom}:${resizeGen}`}
+        lineRef={peekRef}
         className={`lyrics-carousel-slide lyrics-carousel-line lyrics-carousel-peek${peeking ? ' lyrics-carousel-peek-visible' : ''}`}
-      >
-        {nextFirstLine}
-      </div>
+      />
     </div>
   )
 }

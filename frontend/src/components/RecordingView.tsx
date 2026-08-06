@@ -7,7 +7,7 @@ import { useYouTubePlayer } from '../hooks/useYouTubePlayer'
 import { useChordAudio } from '../hooks/useChordAudio'
 import { useChordSync } from '../hooks/useChordSync'
 import { parseReference } from '../lib/parseReference'
-import { parseLyrics } from '../lib/parseLyrics'
+import { parseLyrics, renameSectionTagOccurrence } from '../lib/parseLyrics'
 import { matchLyricsToSections, nextSectionAfterLastTag } from '../lib/matchLyricsToSections'
 import { COUNT_IN_CHORD } from '../lib/countIn'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
@@ -16,6 +16,7 @@ interface Snapshot {
   timeline: ChordEntry[]
   sections: Section[]
   referencePointer: number
+  lyrics: string
 }
 
 const HISTORY_LIMIT = 20
@@ -25,14 +26,29 @@ interface Props {
   chords: string[]
   chordDict: ChordDictionary
   initialSnapshot?: CreatorSnapshot
+  // Where to seek the video (and so the timeline playhead, which just
+  // mirrors it) once the player's ready — set when arriving here from
+  // Playalong mid-song, so playback picks up where it was left off instead
+  // of resetting to the start.
+  initialSeekTime?: number
   onDone: (timeline: ChordEntry[], snapshot: CreatorSnapshot) => void
   onSnapshotChange: (snapshot: CreatorSnapshot) => void
   onChordsChange: (chords: string[]) => void
   onBack: () => void
 }
 
-export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onDone, onSnapshotChange, onChordsChange, onBack }: Props) {
+export function RecordingView({ videoId, chords, chordDict, initialSnapshot, initialSeekTime, onDone, onSnapshotChange, onChordsChange, onBack }: Props) {
   const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
+  // Applies the carried-over Playalong position exactly once, as soon as
+  // the player can actually accept a seek — not in useState's initializer,
+  // since the underlying YouTube player doesn't exist yet at that point.
+  const appliedInitialSeekRef = useRef(false)
+  useEffect(() => {
+    if (!isReady || appliedInitialSeekRef.current || initialSeekTime == null) return
+    appliedInitialSeekRef.current = true
+    seekTo(initialSeekTime)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, initialSeekTime])
   // assignChord/assignCountIn read the latest time from here instead of
   // closing over `currentTime` directly, so they don't need it in their own
   // dependency arrays. currentTime updates every animation frame while the
@@ -91,23 +107,38 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     [lyricsBlocks, sections]
   )
 
+  // When Timeline splits a section, carries that section's lyrics tag (if
+  // any) over to the new left/first half unchanged — same name change,
+  // same lines. The right half is left untagged, since there's no way to
+  // know which of the original lines belong to it; the user re-tags that
+  // part by hand. `sections` here is still the pre-split array (Timeline
+  // calls this before its own onSectionsChange), so the occurrence count
+  // matches the one matchLyricsToSections used to tag it originally.
+  const handleSectionSplit = useCallback((section: Section, newFirstName: string) => {
+    const sameName = sections.filter(s => s.name === section.name).sort((a, b) => a.startTime - b.startTime)
+    const occurrence = sameName.indexOf(section)
+    if (occurrence === -1) return
+    setLyricsText(prev => renameSectionTagOccurrence(prev, section.name, occurrence, newFirstName))
+  }, [sections])
+
   // Which of the two lower-right panels is showing — they share one column
-  // since they're never needed side by side (tagging lyrics with section
-  // names still only needs the Timeline's section bands, not the reference
-  // chart). Falls back to 'reference' if the lyrics tab is showing but the
-  // song has no sections yet to tag lyrics against (see the effect below).
+  // since they're never needed side by side. Lyrics can be pasted in and
+  // edited before any sections exist to tag them against — only the
+  // per-section tag buttons above the textarea need sections, and those
+  // just stay empty until the Timeline has some.
   const [setupTab, setSetupTab] = useState<'reference' | 'lyrics'>('reference')
-  useEffect(() => {
-    if (setupTab === 'lyrics' && sections.length === 0) setSetupTab('reference')
-  }, [setupTab, sections.length])
 
   useEffect(() => {
     setReferencePointer(p => Math.min(p, referenceItems.length))
   }, [referenceItems.length])
 
   // Call before any mutation to timeline/sections so it can be undone later.
+  // Also snapshots the lyrics text — not because plain typing in the Lyrics
+  // editor needs to be undoable on its own, but because some timeline/section
+  // actions (like splitting a section) rewrite a lyrics tag as a side
+  // effect, and undoing that action should put the tag back too.
   function recordHistory() {
-    setPast(p => [...p, { timeline, sections, referencePointer }].slice(-HISTORY_LIMIT))
+    setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText }].slice(-HISTORY_LIMIT))
     setFuture([])
   }
 
@@ -115,10 +146,11 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     setPast(p => {
       if (p.length === 0) return p
       const prev = p[p.length - 1]
-      setFuture(f => [{ timeline, sections, referencePointer }, ...f].slice(0, HISTORY_LIMIT))
+      setFuture(f => [{ timeline, sections, referencePointer, lyrics: lyricsText }, ...f].slice(0, HISTORY_LIMIT))
       setTimeline(prev.timeline)
       setSections(prev.sections)
       setReferencePointer(prev.referencePointer)
+      setLyricsText(prev.lyrics)
       setSelectedIdx(null)
       return p.slice(0, -1)
     })
@@ -128,10 +160,11 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
     setFuture(f => {
       if (f.length === 0) return f
       const next = f[0]
-      setPast(p => [...p, { timeline, sections, referencePointer }].slice(-HISTORY_LIMIT))
+      setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText }].slice(-HISTORY_LIMIT))
       setTimeline(next.timeline)
       setSections(next.sections)
       setReferencePointer(next.referencePointer)
+      setLyricsText(next.lyrics)
       setSelectedIdx(null)
       return f.slice(1)
     })
@@ -348,6 +381,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
               sections={sections}
               lyricsBySection={lyricsBySection}
               onSectionsChange={setSections}
+              onSectionSplit={handleSectionSplit}
               onBeginEdit={recordHistory}
               canUndo={past.length > 0}
               canRedo={future.length > 0}
@@ -397,17 +431,15 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, onD
               >
                 UG
               </button>
-              {sections.length > 0 && (
-                <button
-                  className={`creator-tab${setupTab === 'lyrics' ? ' creator-tab-active' : ''}`}
-                  onClick={() => setSetupTab('lyrics')}
-                >
-                  Lyrics
-                </button>
-              )}
+              <button
+                className={`creator-tab${setupTab === 'lyrics' ? ' creator-tab-active' : ''}`}
+                onClick={() => setSetupTab('lyrics')}
+              >
+                Lyrics
+              </button>
             </div>
             <div className="creator-tabs-body">
-              {setupTab === 'lyrics' && sections.length > 0 ? (
+              {setupTab === 'lyrics' ? (
                 <LyricsEditor
                   text={lyricsText}
                   onTextChange={setLyricsText}

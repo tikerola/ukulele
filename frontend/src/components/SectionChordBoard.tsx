@@ -11,7 +11,6 @@ interface Props {
   section: Section
   entries: ChordEntry[]
   activeIdx: number
-  nextSection: Section | null
   nextChord: string | null
   activeChordEndTime: number | null
   currentTime: number
@@ -50,7 +49,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, maxLyricsLines, chordZoom = 1, lyricsZoom = 1 }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, maxLyricsLines, chordZoom = 1, lyricsZoom = 1 }: Props) {
   const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
@@ -180,11 +179,11 @@ export function SectionChordBoard({ section, entries, activeIdx, nextSection, ne
 
   return (
     <div className="section-board">
-      <div className="section-board-header">
-        <span className="section-board-name">{section.name}</span>
-        {showLyricsOrnament && <span className="section-board-ornament">♪</span>}
-        {nextSection && <span className="section-board-next">Next: {nextSection.name}</span>}
-      </div>
+      {showLyricsOrnament && (
+        <div className="section-board-header">
+          <span className="section-board-ornament">♪</span>
+        </div>
+      )}
       {hasLyrics && (
         <LyricsCarousel
           lyrics={lyrics}

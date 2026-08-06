@@ -32,3 +32,21 @@ export function parseLyrics(text: string): LyricsBlock[] {
 
   return blocks
 }
+
+// Renames one specific `[oldName]` header line to `[newName]`, leaving its
+// lyric lines untouched — used when splitting a section, to carry the
+// existing tag over to the new left/first half (the right half's lyrics
+// aren't known, so nothing is inserted for it). `occurrence` picks which
+// same-named header to rename when the name repeats (0 = first), using the
+// same chronological, nth-occurrence convention as matchLyricsToSections.
+export function renameSectionTagOccurrence(text: string, oldName: string, occurrence: number, newName: string): string {
+  let seen = 0
+  return text.split(/\r?\n/).map(line => {
+    const trimmed = line.trim()
+    const header = trimmed.match(SECTION_HEADER_RE)
+    if (!header || header[1].trim() !== oldName) return line
+    const isMatch = seen === occurrence
+    seen += 1
+    return isMatch ? line.replace(trimmed, `[${newName}]`) : line
+  }).join('\n')
+}
