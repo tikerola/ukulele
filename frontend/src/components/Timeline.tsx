@@ -22,6 +22,9 @@ interface Props {
   // since there's no way to know which of the original lyric lines belong
   // to it.
   onSectionSplit?: (section: Section, newFirstName: string) => void
+  // Fired when a section is renamed — lets the caller carry over `section`'s
+  // lyrics tag (if any) from its old name to the new one.
+  onSectionRename?: (section: Section, newName: string) => void
   onBeginEdit: () => void
   canUndo: boolean
   canRedo: boolean
@@ -114,7 +117,7 @@ function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }
   )
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   // Captured at the start of a marker drag: which section(s) currently treat
@@ -143,6 +146,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // in that section (which performs the split), Esc, or any other
   // selection-changing click.
   const [splitPick, setSplitPick] = useState<number | null>(null)
+  // Index into `sections` of a section currently being renamed inline —
+  // armed by the ✎ Rename button, disarmed by saving, Esc, or any other
+  // selection-changing click.
+  const [renamingIdx, setRenamingIdx] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   // Remembered across sessions (not just within one) — once you've settled
   // on e.g. "8 beats, skip the offbeats" for how you tap in a song, that's
   // almost always still what you want the next time you open Creator.
@@ -215,6 +223,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
     setSplitPick(null)
+    setRenamingIdx(null)
   }
 
   function deleteSections(idxs: number[]) {
@@ -222,6 +231,8 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const idxSet = new Set(idxs)
     onSectionsChange(sections.filter((_, si) => !idxSet.has(si)))
     setSelectedSectionIdxs([])
+    setSplitPick(null)
+    setRenamingIdx(null)
   }
 
   function deleteSection(idx: number) {
@@ -283,10 +294,31 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setSplitPick(idx)
   }
 
+  function beginRename(idx: number) {
+    if (locked) return
+    const section = sections[idx]
+    if (!section) return
+    setRenamingIdx(idx)
+    setRenameValue(section.name)
+  }
+
+  function commitRename() {
+    if (locked || renamingIdx === null) return
+    const idx = renamingIdx
+    const section = sections[idx]
+    const name = renameValue.trim()
+    setRenamingIdx(null)
+    if (!section || !name || name === section.name) return
+    onBeginEdit()
+    onSectionRename?.(section, name)
+    onSectionsChange(sections.map((s, si) => si === idx ? { ...s, name } : s))
+  }
+
   function handleSectionPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
     if (splitPick !== null) { setSplitPick(null); return }
+    setRenamingIdx(null)
     onBeginEdit()
     const section = sections[idx]
     const entryIndices = sectionEntryIndices(section)
@@ -416,6 +448,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
     setSplitPick(null)
+    setRenamingIdx(null)
   }
 
   function handleTrimPointerMove(e: React.PointerEvent) {
@@ -432,6 +465,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleMarkerPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
+    setRenamingIdx(null)
     if (splitPick !== null) {
       const section = sections[splitPick]
       if (section) {
@@ -462,6 +496,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (locked) return
     if (!e.shiftKey) return
     setSplitPick(null)
+    setRenamingIdx(null)
     const anchor = anchorIdx ?? idx
     const [lo, hi] = anchor <= idx ? [anchor, idx] : [idx, anchor]
     setAnchorIdx(anchor)
@@ -482,6 +517,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSplitPick(null)
+    setRenamingIdx(null)
     if (e.shiftKey) {
       setSelectedSectionIdxs(prev => prev.includes(idx)
         ? prev.filter(i => i !== idx)
@@ -534,12 +570,24 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setMarkerBoundSections([])
   }
 
-  // A section's boundaries are just the times of its first/last chord —
-  // once either chord is gone the boundary points at nothing, so the
-  // section is cleared rather than left silently dangling (it would
-  // otherwise still render, falling back to a stale pixel position).
+  // A section's boundaries are just the times of its first/last chord — once
+  // its start is gone the boundary points at nothing, so the section is
+  // cleared rather than left silently dangling (it would otherwise still
+  // render, falling back to a stale pixel position). Its *end*, though, gets
+  // a second chance first: if it was a trailing fill beat (fillToNextChord
+  // extends a section's endTime to cover one), retract to whatever entry
+  // still stands closest to it inside the section's range rather than
+  // dropping the whole thing — the section's real last chord is very likely
+  // still there. Only when nothing survives inside the range does it fall
+  // through to being cleared too.
   function sectionsAfterDeleting(deletedTimes: Set<number>): Section[] {
-    return sections.filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime))
+    const retracted = sections.map(s => {
+      if (!deletedTimes.has(s.endTime)) return s
+      const survivors = timeline.filter(e => e.time >= s.startTime && e.time <= s.endTime && !deletedTimes.has(e.time))
+      if (survivors.length === 0) return s
+      return { ...s, endTime: Math.max(...survivors.map(e => e.time)) }
+    })
+    return retracted.filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime))
   }
 
   function deleteEntry(idx: number) {
@@ -547,7 +595,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const deletedTime = timeline[idx].time
     commitTimeline(timeline.filter((_, i) => i !== idx))
     const nextSections = sectionsAfterDeleting(new Set([deletedTime]))
-    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
+    if (nextSections.length !== sections.length || nextSections.some((s, i) => s !== sections[i])) {
+      onSectionsChange(nextSections)
+    }
     onSelectChange(null)
   }
 
@@ -587,6 +637,17 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (newEntries.length === 0) return
     onBeginEdit()
     commitTimeline([...timeline, ...newEntries])
+    // If `start` is a section's last chord, that section's stored endTime is
+    // just that chord's own tap time — it doesn't yet know about the beats
+    // just filled in after it, which land strictly before `next.time` (so
+    // this can never overlap whatever section `next` itself belongs to).
+    // Extend the section to its new true last beat so its band on the
+    // timeline (and its active window in Playalong) actually covers them.
+    const lastNewTime = newEntries[newEntries.length - 1].time
+    const boundSection = sections.find(s => s.endTime === start.time)
+    if (boundSection) {
+      onSectionsChange(sections.map(s => s === boundSection ? { ...s, endTime: lastNewTime } : s))
+    }
     setFillSkip(new Set())
   }
 
@@ -621,7 +682,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
 
   // Deletes every entry a fill added after its anchor (the anchor itself
   // keeps its index afterward, since everything removed sits after it) —
-  // undoes a fill back down to a single tap.
+  // undoes a fill back down to a single tap. If the anchor's section had
+  // been extended to cover this run (fillToNextChord), sectionsAfterDeleting
+  // retracts it back to the anchor's own time rather than dropping it.
   function removeFill(group: number[]) {
     if (locked) return
     onBeginEdit()
@@ -629,7 +692,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const deletedTimes = new Set(group.slice(1).map(i => timeline[i].time))
     commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
     const nextSections = sectionsAfterDeleting(deletedTimes)
-    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
+    if (nextSections.length !== sections.length || nextSections.some((s, i) => s !== sections[i])) {
+      onSectionsChange(nextSections)
+    }
   }
 
   function deleteRanges(ranges: [number, number][]) {
@@ -644,7 +709,9 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     })
     commitTimeline(timeline.filter((_, i) => !toRemove.has(i)))
     const nextSections = sectionsAfterDeleting(deletedTimes)
-    if (nextSections.length !== sections.length) onSectionsChange(nextSections)
+    if (nextSections.length !== sections.length || nextSections.some((s, i) => s !== sections[i])) {
+      onSectionsChange(nextSections)
+    }
     setRangeSel(null)
     setAnchorIdx(null)
     setSectionName('')
@@ -661,6 +728,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(null)
     setSelectedSectionIdxs([])
     setSplitPick(null)
+    setRenamingIdx(null)
   }
 
   function handleUndo() {
@@ -669,6 +737,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
     setSplitPick(null)
+    setRenamingIdx(null)
     onUndo()
   }
 
@@ -678,6 +747,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(null)
     setSelectedSectionIdxs([])
     setSplitPick(null)
+    setRenamingIdx(null)
     onRedo()
   }
 
@@ -698,6 +768,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       }
       if (e.key === 'Escape') {
         if (splitPick !== null) { setSplitPick(null); return }
+        if (renamingIdx !== null) { setRenamingIdx(null); return }
         setRangeSel(null)
         setAnchorIdx(null)
         setSelectedSectionIdxs([])
@@ -718,7 +789,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo, splitPick])
+  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo, splitPick, renamingIdx])
 
   // Keeps the playhead centered in the visible area at all times, rather
   // than only snapping the view once the playhead nears an edge — so the
@@ -789,6 +860,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setAnchorIdx(null)
     setRangeSel(freeRanges)
     setSplitPick(null)
+    setRenamingIdx(null)
   }
 
   // While a section is armed for split-picking, every one of its chords
@@ -1022,6 +1094,21 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <span className="timeline-popover-hint">Click a highlighted chord below to split there · Esc to cancel</span>
             <button className="btn-ghost" onClick={() => setSplitPick(null)}>Cancel</button>
           </>
+        ) : renamingIdx !== null && sections[renamingIdx] ? (
+          <>
+            <input
+              className="section-name-input"
+              autoFocus
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitRename()
+                else if (e.key === 'Escape') setRenamingIdx(null)
+              }}
+            />
+            <button className="btn-small" disabled={!renameValue.trim()} onClick={commitRename}>Save</button>
+            <button className="btn-ghost" onClick={() => setRenamingIdx(null)}>Cancel</button>
+          </>
         ) : selectedIdx !== null && timeline[selectedIdx] ? (
           <>
             <span className="timeline-popover-chord">{timeline[selectedIdx].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx].chord}</span>
@@ -1059,6 +1146,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <span className="timeline-popover-chord">{sections[selectedSectionIdxs[0]].name}</span>
             <span>{formatTime(sections[selectedSectionIdxs[0]].startTime)}–{formatTime(sections[selectedSectionIdxs[0]].endTime)}</span>
             <span className="timeline-popover-hint">Drag the band to move it · Shift+click another section to multi-select · Esc to deselect</span>
+            <button
+              className="btn-small"
+              onClick={() => beginRename(selectedSectionIdxs[0])}
+              title="Rename this section"
+            >✎ Rename</button>
             <button
               className="btn-small"
               onClick={() => duplicateSections(selectedSectionIdxs)}

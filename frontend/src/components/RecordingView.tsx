@@ -107,19 +107,35 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     [lyricsBlocks, sections]
   )
 
+  // Renames whichever [oldName] lyrics tag matches `section` — its position
+  // among same-named sections (chronological, by startTime) is the same
+  // "nth occurrence" convention matchLyricsToSections used to tag it in the
+  // first place, so this keeps the two in sync. Shared by the split and
+  // rename handlers below; both call it with `sections` still holding the
+  // section's *old* name (Timeline fires these before its own
+  // onSectionsChange), so the occurrence lookup is against the state the
+  // tag was actually matched under.
+  const renameSectionLyricsTag = useCallback((section: Section, newName: string) => {
+    const sameName = sections.filter(s => s.name === section.name).sort((a, b) => a.startTime - b.startTime)
+    const occurrence = sameName.indexOf(section)
+    if (occurrence === -1) return
+    setLyricsText(prev => renameSectionTagOccurrence(prev, section.name, occurrence, newName))
+  }, [sections])
+
   // When Timeline splits a section, carries that section's lyrics tag (if
   // any) over to the new left/first half unchanged — same name change,
   // same lines. The right half is left untagged, since there's no way to
   // know which of the original lines belong to it; the user re-tags that
-  // part by hand. `sections` here is still the pre-split array (Timeline
-  // calls this before its own onSectionsChange), so the occurrence count
-  // matches the one matchLyricsToSections used to tag it originally.
+  // part by hand.
   const handleSectionSplit = useCallback((section: Section, newFirstName: string) => {
-    const sameName = sections.filter(s => s.name === section.name).sort((a, b) => a.startTime - b.startTime)
-    const occurrence = sameName.indexOf(section)
-    if (occurrence === -1) return
-    setLyricsText(prev => renameSectionTagOccurrence(prev, section.name, occurrence, newFirstName))
-  }, [sections])
+    renameSectionLyricsTag(section, newFirstName)
+  }, [renameSectionLyricsTag])
+
+  // When Timeline renames a section, carries its lyrics tag (if any) over
+  // to the new name the same way.
+  const handleSectionRename = useCallback((section: Section, newName: string) => {
+    renameSectionLyricsTag(section, newName)
+  }, [renameSectionLyricsTag])
 
   // Which of the two lower-right panels is showing — they share one column
   // since they're never needed side by side. Lyrics can be pasted in and
@@ -263,7 +279,20 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     if (!timeline.some(e => inSweep(e.time))) return
     const deletedTimes = new Set(timeline.filter(e => inSweep(e.time)).map(e => e.time))
     setTimeline(prev => prev.filter(e => !inSweep(e.time)))
-    setSections(prev => prev.filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime)))
+    setSections(prev => prev
+      // A section whose endTime falls in the swept range retracts to
+      // whatever entry still stands closest to it inside the section's
+      // range (e.g. a trailing fill beat added by Timeline's "Fill beats" —
+      // see fillToNextChord) rather than being dropped outright; only when
+      // nothing survives inside the range does it fall through to the
+      // startTime/endTime filter below.
+      .map(s => {
+        if (!deletedTimes.has(s.endTime)) return s
+        const survivors = timeline.filter(e => e.time >= s.startTime && e.time <= s.endTime && !deletedTimes.has(e.time))
+        if (survivors.length === 0) return s
+        return { ...s, endTime: Math.max(...survivors.map(e => e.time)) }
+      })
+      .filter(s => !deletedTimes.has(s.startTime) && !deletedTimes.has(s.endTime)))
   }, [currentTime, timeline, locked])
 
   useEffect(() => {
@@ -382,6 +411,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
               lyricsBySection={lyricsBySection}
               onSectionsChange={setSections}
               onSectionSplit={handleSectionSplit}
+              onSectionRename={handleSectionRename}
               onBeginEdit={recordHistory}
               canUndo={past.length > 0}
               canRedo={future.length > 0}
