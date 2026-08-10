@@ -6,6 +6,8 @@ interface YTPlayer {
   seekTo(seconds: number, allowSeekAhead: boolean): void
   playVideo(): void
   pauseVideo(): void
+  mute(): void
+  unMute(): void
   destroy(): void
 }
 
@@ -165,6 +167,8 @@ export function useYouTubePlayer(videoId: string) {
   }
   const play = () => playerRef.current?.playVideo()
   const pause = () => playerRef.current?.pauseVideo()
+  const mute = () => playerRef.current?.mute()
+  const unMute = () => playerRef.current?.unMute()
 
-  return { containerRef, currentTime, duration, isReady, isPlaying, getTime, seekTo, play, pause }
+  return { containerRef, currentTime, duration, isReady, isPlaying, getTime, seekTo, play, pause, mute, unMute }
 }

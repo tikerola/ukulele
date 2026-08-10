@@ -277,6 +277,24 @@ textarea { resize: vertical; }
   color: var(--text);
 }
 
+/* Same pill shape as .rec-readout — this is also a live status ("this file,
+   not the video, is what's playing"), not just a button. */
+.audio-file-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.12);
+  border: 1px solid rgba(var(--primary-rgb), 0.4);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.audio-file-name {
+  color: var(--text);
+}
+
 .rec-dot {
   width: 7px;
   height: 7px;
@@ -468,7 +486,16 @@ textarea { resize: vertical; }
 
 /* ─── Player Screen ───────────────────────────────────────── */
 
-.player-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+/* overflow: hidden (unlike .recording-screen, which already had this) — a
+   browser sharing/recording indicator can eat into the real viewport in
+   ways this screen's own vh/dvh height doesn't always pick up. Without this,
+   anything that ends up taller than the resulting box (e.g. the video not
+   shrinking in time) pushes body past the viewport and the whole page grows
+   a scrollbar, which can scroll the header's Stop/Record controls out of
+   view. With it, any such overflow is clipped at this box's true rendered
+   height instead — .section-board's own overflow-y: auto (below) is what
+   actually keeps the chord content reachable when that happens. */
+.player-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
 .player-layout {
   display: flex;
@@ -513,9 +540,20 @@ textarea { resize: vertical; }
 /* Fixed size regardless of whether the fallback chord row or a full section
    board is showing below it, so switching between them never resizes the
    video. Collapses entirely when the user hides it to maximize chord space. */
+/* vh AND dvh (not just the vh/dvh pair .player-screen already has on its
+   own height) — the browser's own "sharing this tab" indicator can shrink
+   the real viewport once Record is clicked without the plain-vh media
+   queries below noticing (max-height queries commonly track the large/
+   static viewport, not the dynamic one), leaving this fixed-vh video too
+   tall for the now-smaller .player-screen and pushing the chord grid below
+   it into a scrollbar. Sizing directly off dvh keeps it proportionally in
+   sync with the container's own actual height at all times, independent of
+   whether any breakpoint below happens to fire. */
 .yt-wrapper-fixed {
   flex: 0 1 38vh;
+  flex-basis: 38dvh;
   max-height: 38vh;
+  max-height: 38dvh;
 }
 
 .yt-wrapper-hidden {
@@ -986,6 +1024,7 @@ textarea { resize: vertical; }
    vertical room to display without being clipped or needing a scroll. */
 @media (max-height: 700px) {
   .yt-wrapper-fixed { flex-basis: 26vh; max-height: 26vh; }
+  .yt-wrapper-fixed { flex-basis: 26dvh; max-height: 26dvh; }
   .app-header-compact { padding: 8px 16px; }
   .section-board { padding: 10px 16px; }
   .section-board-header { margin-bottom: 8px; }
@@ -996,6 +1035,7 @@ textarea { resize: vertical; }
 
 @media (max-height: 560px) {
   .yt-wrapper-fixed { flex-basis: 20vh; max-height: 20vh; }
+  .yt-wrapper-fixed { flex-basis: 20dvh; max-height: 20dvh; }
   .chord-row-item svg { width: 66px; height: 84px; }
 }
 

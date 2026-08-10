@@ -10,6 +10,7 @@ import { parseReference } from '../lib/parseReference'
 import { parseLyrics, renameSectionTagOccurrence } from '../lib/parseLyrics'
 import { matchLyricsToSections, nextSectionAfterLastTag } from '../lib/matchLyricsToSections'
 import { COUNT_IN_CHORD } from '../lib/countIn'
+import { transposeChord, transposeReferenceText } from '../lib/transposeChord'
 import type { ChordEntry, ChordDictionary, CreatorSnapshot, Section } from '../types'
 
 interface Snapshot {
@@ -262,6 +263,23 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, locked, timeline, sections])
 
+  // Rewrites the chord palette, every real timeline entry (count-in ticks
+  // are untouched — they're not chords) and any chord tokens in the pasted
+  // reference text, all by the same amount — e.g. for practicing along to a
+  // pitch-shifted copy of the video that's no longer in the original key.
+  // Not routed through recordHistory/undo (reference text and the chord
+  // palette aren't part of that history to begin with, see Snapshot above) —
+  // instead it's just its own inverse: transposing +1 then -1 lands back
+  // exactly where it started, so the opposite button *is* the undo.
+  const handleTranspose = useCallback((semitones: number) => {
+    if (locked) return
+    onChordsChange(chords.map(c => transposeChord(c, semitones)))
+    setTimeline(prev => prev.map(entry => entry.chord === COUNT_IN_CHORD
+      ? entry
+      : { ...entry, chord: transposeChord(entry.chord, semitones) }))
+    setReferenceText(prev => transposeReferenceText(prev, semitones))
+  }, [locked, chords, onChordsChange])
+
   // Holding Alt while the video plays arms punch-in overwrite: any chord
   // tap made while it's held (below) starts a sweep from that tap's time,
   // and as currentTime keeps advancing while Alt stays down, every
@@ -381,6 +399,14 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
           >
             {soundOn ? '🔊' : '🔇'}
           </button>
+          <div
+            className="zoom-controls"
+            title="Transpose the chord palette, timeline and pasted reference chords by a semitone — e.g. for practicing along to a pitch-shifted copy of the video"
+          >
+            <span className="zoom-label">🎼</span>
+            <button className="btn-ghost zoom-btn" onClick={() => handleTranspose(-1)} disabled={locked} title="Transpose down a semitone">－</button>
+            <button className="btn-ghost zoom-btn" onClick={() => handleTranspose(1)} disabled={locked} title="Transpose up a semitone">＋</button>
+          </div>
           <button
             className={`btn-ghost${isPlaying ? ' btn-ghost-active' : ''}`}
             onClick={() => (isPlaying ? pause() : play())}

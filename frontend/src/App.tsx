@@ -5,6 +5,7 @@ import { SectionChordBoard } from './components/SectionChordBoard'
 import { RecordingView } from './components/RecordingView'
 import { formatTime } from './components/Timeline'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
+import { useAudioFilePlayer } from './hooks/useAudioFilePlayer'
 import { useChordAudio } from './hooks/useChordAudio'
 import { useSectionChords } from './hooks/useChordSync'
 import { useScreenRecorder } from './hooks/useScreenRecorder'
@@ -27,6 +28,13 @@ const ZOOM_STEP = 0.1
 function loadZoom(storageKey: string): number {
   const raw = Number(localStorage.getItem(storageKey))
   return raw >= ZOOM_MIN && raw <= ZOOM_MAX ? raw : 1
+}
+
+// Keeps the audio-file control's label from dominating the already-busy
+// Playalong header — the full name is still available via the title
+// tooltip on the element this is used in.
+function truncateFileName(name: string, maxChars = 5): string {
+  return name.length > maxChars ? name.slice(0, maxChars) + '…' : name
 }
 
 function extractVideoId(url: string): string | null {
@@ -321,7 +329,25 @@ function PlayalongView({
   const chordZoomOut = useCallback(() => setChordZoom(z => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100)), [])
   const lyricsZoomIn = useCallback(() => setLyricsZoom(z => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100)), [])
   const lyricsZoomOut = useCallback(() => setLyricsZoom(z => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100)), [])
-  const { containerRef, currentTime, duration, isReady, isPlaying, seekTo, play, pause } = useYouTubePlayer(videoId)
+  const yt = useYouTubePlayer(videoId)
+  const { containerRef } = yt
+  // A local audio file (e.g. a pitch-shifted copy of the video, prepared
+  // outside UkeSync) takes over as the thing actually heard *and* the clock
+  // chord sync/transport/recording all follow, in place of the video's own
+  // audio and timeline — everything below that reads currentTime/duration/
+  // isReady/isPlaying/seekTo/play/pause is written generically against
+  // whichever source is active, so nothing else needs to know which one it
+  // is. Not persisted — picked fresh each session via the file input below.
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const usingAudioFile = !!audioFile
+  const audioFilePlayer = useAudioFilePlayer(audioFile)
+  const currentTime = usingAudioFile ? audioFilePlayer.currentTime : yt.currentTime
+  const duration = usingAudioFile ? audioFilePlayer.duration : yt.duration
+  const isReady = usingAudioFile ? audioFilePlayer.isReady : yt.isReady
+  const isPlaying = usingAudioFile ? audioFilePlayer.isPlaying : yt.isPlaying
+  const seekTo = usingAudioFile ? audioFilePlayer.seekTo : yt.seekTo
+  const play = usingAudioFile ? audioFilePlayer.play : yt.play
+  const pause = usingAudioFile ? audioFilePlayer.pause : yt.pause
   // Read by the ArrowLeft/ArrowRight handler below instead of closing over
   // currentTime directly, so that handler's effect doesn't need to re-run
   // (removing and re-adding the window listener) on every animation frame
@@ -329,6 +355,14 @@ function PlayalongView({
   const currentTimeRef = useRef(currentTime)
   currentTimeRef.current = currentTime
   const { playChord } = useChordAudio()
+  // A local audio file's own audio should never play alongside the video's —
+  // applied whenever usingAudioFile changes and whenever the player becomes
+  // ready (covers picking a file before the player exists yet).
+  useEffect(() => {
+    if (!yt.isReady) return
+    if (usingAudioFile) yt.mute(); else yt.unMute()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usingAudioFile, yt.isReady])
   const { state: recordingState, error: recordingError, downloadUrl: recordingUrl, start: startRecording, stop: stopRecording, reset: resetRecording } = useScreenRecorder()
   const recordRegionRef = useRef<HTMLDivElement | null>(null)
   // Starting the recorder doesn't touch playback itself — without this, the
@@ -455,6 +489,34 @@ function PlayalongView({
           >
             {videoHidden ? '📺 Show video' : '🙈 Hide video'}
           </button>
+          {usingAudioFile ? (
+            <span
+              className="audio-file-control"
+              title="Playing this file instead of the video's own audio — it now drives playback, chord sync and recording."
+            >
+              🎵 <span className="audio-file-name" title={audioFile.name}>{truncateFileName(audioFile.name)}</span>
+              <button
+                className="btn-ghost btn-small"
+                onClick={() => setAudioFile(null)}
+                title="Stop using this file — go back to the video's own audio"
+              >
+                ✕
+              </button>
+            </span>
+          ) : (
+            <label
+              className="btn-ghost"
+              title="Play a local audio file instead of the video's own sound — e.g. a pitch-shifted copy of the video prepared elsewhere. Also mutes the video, and drives chord sync, transport and recording."
+            >
+              🎵 Audio file
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={e => setAudioFile(e.target.files?.[0] ?? null)}
+                style={{ display: 'none' }}
+              />
+            </label>
+          )}
           <button
             ref={playPauseRef}
             className={`btn-ghost${isPlaying ? ' btn-ghost-active' : ''}`}
@@ -503,7 +565,7 @@ function PlayalongView({
               <button
                 className="btn-record"
                 onClick={handleStartRecording}
-                title="Record this screen as a video — pick &quot;This Tab&quot; and enable &quot;Share tab audio&quot; when your browser asks. Playback starts automatically once sharing begins."
+                title='Record this screen as a video — pick "This Tab" and enable "Share tab audio" when your browser asks. Playback starts automatically once sharing begins.'
               >
                 ⏺ Record
               </button>
@@ -515,8 +577,8 @@ function PlayalongView({
                     auto-start-on-record and auto-stop-on-pause effects above),
                     so there's no separate clock to keep in sync. */}
                 <span className="rec-readout">
-                  <span className="rec-dot" aria-hidden="true" /> REC{' '}
-                  <span className="rec-readout-time">{formatTime(Math.max(0, currentTime - (startOffset ?? 0)))}</span>
+                  <span className="rec-dot" aria-hidden="true" />{' '}
+                  REC <span className="rec-readout-time">{formatTime(Math.max(0, currentTime - (startOffset ?? 0)))}</span>
                 </span>
                 <button
                   className="btn-record"
@@ -546,6 +608,11 @@ function PlayalongView({
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {!isReady && <div className="yt-loading">Loading player…</div>}
           </div>
+          {/* Not visual — just the actual playback engine while a local
+              audio file is active. Always mounted (rather than only once a
+              file is picked) so useAudioFilePlayer has a real element to
+              attach the object URL to the moment one is. */}
+          <audio ref={audioFilePlayer.audioRef} />
           {videoHidden && isReady && (
             <PlaybackBar currentTime={currentTime} duration={duration} startOffset={startOffset} endOffset={endOffset} onSeek={seekTo} />
           )}

@@ -5,7 +5,9 @@ export interface ReferenceItem {
 
 // Tokens that show up in chord charts but aren't chords: repeat markers,
 // "no chord" markers, bar-line leftovers, etc. Filtered out before matching.
-const IGNORE_TOKEN_RE = /^(?:x\d+|\d+x|\(x?\d+x?\)|n\.?c\.?|%|-{1,3})$/i
+// Exported for lib/transposeChord.ts, which needs the same distinction when
+// deciding which tokens on a chord line to rewrite.
+export const IGNORE_TOKEN_RE = /^(?:x\d+|\d+x|\(x?\d+x?\)|n\.?c\.?|%|-{1,3})$/i
 
 // Deliberately permissive rather than exhaustive — good enough to tell a
 // chord token ("Cadd9", "G/B", "F#m7b5") apart from a lyric word.
@@ -19,7 +21,8 @@ const CHORD_QUALITY =
   '|add9|add11|add2' +
   '|6/9|6|7sus4|7sus2|7|9|11|13|2|4|5'
 
-const CHORD_TOKEN_RE = new RegExp(`^[A-G](?:#|b)?(?:${CHORD_QUALITY})?(?:/[A-G](?:#|b)?)?$`, 'i')
+// Exported for lib/transposeChord.ts — see IGNORE_TOKEN_RE above.
+export const CHORD_TOKEN_RE = new RegExp(`^[A-G](?:#|b)?(?:${CHORD_QUALITY})?(?:/[A-G](?:#|b)?)?$`, 'i')
 
 const SECTION_HEADER_RE = /^\[([^\]]+)\]$/
 
