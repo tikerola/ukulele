@@ -87,6 +87,13 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
   const lastLine = lines.length ? lines[lines.length - 1] : null
   const nextFirstLine = nextLyrics?.split('\n')[0] ?? null
   const peeking = showPreview && isLastChordActive && !!nextFirstLine
+  // How many rows this section's own text actually occupies — at minimum
+  // 1, since a lyrics-less section still renders one (blank) "current
+  // line" slot below. Feeds --lyrics-current-rows, which .lyrics-carousel-peek
+  // uses to sit exactly one row below the *real* end of this section's
+  // text instead of below the song-wide reserved block (see App.css) —
+  // otherwise a short section leaves a large gap before the preview line.
+  const currentRows = Math.max(1, lines.length)
 
   const containerRef = useRef<HTMLDivElement>(null)
   // Bumped on every resize of the lyrics block itself (window resize, chord
@@ -161,21 +168,23 @@ export function LyricsCarousel({ lyrics, nextLyrics, showPreview, isLastChordAct
   // SectionChordBoard only mounts this component at all when the song has
   // lyrics somewhere (see its `hasLyrics` gate). A section with no lyrics of
   // its own, and nothing upcoming to peek at, still renders this block with
-  // an empty current-line slot. Combined with .lyrics-carousel-section's
-  // fixed height below (sized off `maxLines`, the tallest lyrics block in
-  // the song), this section's text block always reserves exactly the same
-  // height as the song's biggest one — whether it has zero lines, one line,
-  // or the max — so the chord grid below it never shifts as playback moves
-  // between sections, no matter how long any line's text is (AutosizeLyricLine
-  // keeps every line to one row, and the fixed height + overflow:hidden below
-  // is a hard backstop even so).
+  // an empty current-line slot. .lyrics-carousel-section itself sizes to
+  // however many lines this section actually has; it's the outer
+  // .lyrics-carousel that reserves the constant height (`maxLines`, the
+  // tallest lyrics block in the song, +1 for the peek row) so the chord
+  // grid below it never shifts as playback moves between sections — see
+  // App.css.
   const arrivedIsPreceding = precedingLines.length > 0
 
   return (
     <div
       ref={containerRef}
       className="lyrics-carousel"
-      style={{ ['--lyrics-zoom' as string]: zoom, ['--lyrics-max-lines' as string]: maxLines }}
+      style={{
+        ['--lyrics-zoom' as string]: zoom,
+        ['--lyrics-max-lines' as string]: maxLines,
+        ['--lyrics-current-rows' as string]: currentRows,
+      }}
     >
       <div key={lyrics ?? ''} className="lyrics-carousel-section">
         {precedingLines.map((line, i) => (

@@ -645,9 +645,20 @@ textarea { resize: vertical; }
    Rendered as a top-anchored stack of individual lines (see
    LyricsCarousel.tsx) rather than one pre-line text block, so the section's
    last line can be a single persistent element that the peek row animates
-   underneath instead of being recreated at a different position. */
+   underneath instead of being recreated at a different position.
+   Reserves height for the song's tallest lyrics block plus one extra row
+   for the peek (--lyrics-max-lines + 1, set from LyricsCarousel.tsx's
+   `maxLines` prop) rather than however many lines the active section
+   actually has — so the chord grid below never shifts as playback moves
+   between sections with different lyric line counts. `position: relative`
+   is what lets .lyrics-carousel-peek below anchor itself to the *actual*
+   end of this section's text (via --lyrics-current-rows) instead of to
+   the bottom of this reserved block — see .lyrics-carousel-peek. */
 .lyrics-carousel {
+  position: relative;
   flex-shrink: 0;
+  height: calc((var(--lyrics-max-lines, 1) + 1) * 42px * var(--lyrics-zoom, 1) * 1.5);
+  overflow: hidden;
   margin-bottom: 16px;
 }
 
@@ -673,20 +684,13 @@ textarea { resize: vertical; }
   min-height: 1.5em;
 }
 
-/* Reserves this section's own text block at the height of the song's
-   tallest lyrics block (--lyrics-max-lines, set from LyricsCarousel.tsx's
-   `maxLines` prop) rather than however many lines this section actually
-   has. Lines stack top-down and any leftover reserved space just sits
-   below them, so a 1-line (or 0-line) section's block is exactly as tall
-   as the song's biggest one — keeping the chord grid below it at a
-   constant y regardless of which section is playing. A fixed `height` (not
-   `min-height`) plus `overflow: hidden` — a hard ceiling, not just a floor —
-   so the chord grid's position is guaranteed regardless of lyrics content,
-   even if a line's autosize ever floors out before fully fitting. */
-.lyrics-carousel-section {
-  height: calc(var(--lyrics-max-lines, 1) * 42px * var(--lyrics-zoom, 1) * 1.5);
-  overflow: hidden;
-}
+/* Sized naturally to however many lines the active section actually has —
+   .lyrics-carousel above is what reserves the constant total height, this
+   just stacks the real content top-down within it. Deliberately *not*
+   height-clamped itself: clamping this to the song's max would leave
+   .lyrics-carousel-peek (which anchors to this content's real end, not to
+   a reserved bottom edge) sitting flush against whatever's rendered — the
+   old bug this replaced was exactly that gap appearing between them. */
 
 /* Plays whenever LyricsCarousel remounts a line (new key = a new section's
    lyrics) — genuinely new content that was never on screen before. The one
@@ -709,13 +713,22 @@ textarea { resize: vertical; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Reserves its row at all times (see the comment in LyricsCarousel.tsx) —
-   only opacity/transform animate, so the peek sliding up from just below
-   the fold never changes this container's total height. */
+/* Absolutely positioned (relative to .lyrics-carousel) so it can sit
+   exactly one row below the *actual* end of the active section's text —
+   --lyrics-current-rows (set from LyricsCarousel.tsx's real `lines.length`,
+   not the song-wide max) — the same uniform gap as between any two real
+   lyric lines, regardless of how many lines shorter this section is than
+   the song's tallest. Reserves that row at all times (see the comment in
+   LyricsCarousel.tsx) — only opacity/transform animate, so the peek
+   sliding up from just below the fold never shifts anything else. */
 .lyrics-carousel-peek {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--lyrics-current-rows, 1) * 42px * var(--lyrics-zoom, 1) * 1.5);
   opacity: 0;
   transform: translateY(16px);
-  transition: transform 0.4s ease, opacity 0.4s ease;
+  transition: top 0.4s ease, transform 0.4s ease, opacity 0.4s ease;
 }
 
 .lyrics-carousel-peek.lyrics-carousel-peek-visible {
