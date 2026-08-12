@@ -44,6 +44,12 @@ const MIN_PPS = 10
 const MAX_PPS = 200
 const DEFAULT_PPS = 40
 const FILL_BEATS_STORAGE_KEY = 'ukesync-fill-beats'
+// How long a marker must be held before it becomes draggable — a plain
+// click's pointerdown/pointerup pair is often accompanied by a few pixels of
+// incidental mouse movement, which without this delay gets misread as a drag
+// and nudges the chord's time. Selection itself still happens immediately on
+// pointerdown; only the drag-follows-the-cursor behavior is deferred.
+const DRAG_ACTIVATION_DELAY_MS = 150
 
 const SECTION_PRESETS = ['Intro', 'Verse', 'Chorus', 'Pre-Chorus', 'Instrumental']
 
@@ -163,14 +169,33 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     return Number.isFinite(saved) ? Math.max(2, Math.min(16, saved)) : 4
   })
   const [fillSkip, setFillSkip] = useState<Set<number>>(new Set())
+  // Mirrors the selected chord's "beats" field (how many beats its card
+  // displays as spanning) as free-typed text, purely so the input can show
+  // an in-progress/invalid string (e.g. momentarily empty while retyping)
+  // without a controlled value derived straight from committed data
+  // fighting the user's typing. The actual commit happens synchronously in
+  // handleChordBeatsInput on every keystroke that parses to a valid
+  // in-range number — see that function for why it isn't deferred to
+  // blur/Enter. Synced from the selection below.
+  const [chordBeatsDraft, setChordBeatsDraft] = useState('')
 
   useEffect(() => {
     try { window.localStorage.setItem(FILL_BEATS_STORAGE_KEY, String(fillBeats)) } catch { /* storage unavailable */ }
   }, [fillBeats])
 
+  useEffect(() => {
+    return () => {
+      if (dragArmTimeoutRef.current !== null) window.clearTimeout(dragArmTimeoutRef.current)
+    }
+  }, [])
+
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const markerRefs = useRef<(HTMLDivElement | null)[]>([])
+  // Pending "arm drag" timeout from a marker pointerdown — see
+  // DRAG_ACTIVATION_DELAY_MS. Cleared on pointerup so a plain click never
+  // ends up arming a drag that fires after the finger/mouse already lifted.
+  const dragArmTimeoutRef = useRef<number | null>(null)
   const [markerRects, setMarkerRects] = useState<Record<number, { left: number; right: number }>>({})
 
   const trackWidth = Math.max(duration * pps, 200)
@@ -181,8 +206,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
 
   // A fresh selection starts with every beat enabled — skip choices from
   // filling a previous entry shouldn't silently carry over to this one.
+  // Also re-syncs the beats-count draft from the newly selected chord, so
+  // switching selection never leaves a stale, uncommitted edit sitting in
+  // the input for the wrong chord.
   useEffect(() => {
     setFillSkip(new Set())
+    setChordBeatsDraft(selectedIdx !== null && timeline[selectedIdx] ? String(timeline[selectedIdx].beats ?? 4) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx])
 
   useLayoutEffect(() => {
@@ -488,7 +518,6 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     }
     onBeginEdit()
     e.currentTarget.setPointerCapture(e.pointerId)
-    setDragIdx(idx)
     onSelectChange(idx)
     setAnchorIdx(idx)
     setRangeSel(null)
@@ -500,6 +529,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       if (s.endTime === t) bound.push({ si, edge: 'end' })
     })
     setMarkerBoundSections(bound)
+    if (dragArmTimeoutRef.current !== null) window.clearTimeout(dragArmTimeoutRef.current)
+    dragArmTimeoutRef.current = window.setTimeout(() => {
+      dragArmTimeoutRef.current = null
+      setDragIdx(idx)
+    }, DRAG_ACTIVATION_DELAY_MS)
   }
 
   function handleMarkerClick(e: React.MouseEvent, idx: number) {
@@ -572,6 +606,10 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   }
 
   function handleMarkerPointerUp() {
+    if (dragArmTimeoutRef.current !== null) {
+      window.clearTimeout(dragArmTimeoutRef.current)
+      dragArmTimeoutRef.current = null
+    }
     if (dragIdx === null) return
     const draggedEntry = timeline[dragIdx]
     const sorted = [...timeline].sort((a, b) => a.time - b.time)
@@ -579,6 +617,40 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSelectChange(sorted.indexOf(draggedEntry))
     setDragIdx(null)
     setMarkerBoundSections([])
+  }
+
+  // Commits the beats-count for the selected chord to the timeline as soon
+  // as the typed text parses to a real in-range number — not deferred to
+  // blur/Enter. Deferring it turned out to race navigation: clicking
+  // straight from this input onto the next chord's marker fires that
+  // marker's onSelectChange before the browser gets around to blurring
+  // this input, so a blur-triggered commit could land after the selection
+  // (and the `idx` closed over by this very handler) had already moved on
+  // — losing the edit, or worse, writing it to the wrong chord. Committing
+  // inside onChange closes that gap: it runs synchronously as part of the
+  // keystroke itself, strictly before any later click can be dispatched.
+  // `raw` is kept as its own draft (chordBeatsDraft) purely so the input
+  // can display an in-progress/invalid string (e.g. momentarily empty
+  // while retyping) without fighting a controlled value derived straight
+  // from committed data.
+  function handleChordBeatsInput(idx: number, raw: string) {
+    setChordBeatsDraft(raw)
+    const entry = timeline[idx]
+    if (!entry) return
+    const parsed = parseInt(raw, 10)
+    if (!Number.isFinite(parsed)) return
+    const clamped = Math.max(1, Math.min(16, parsed))
+    if (clamped === (entry.beats ?? 4)) return
+    onBeginEdit()
+    commitTimeline(timeline.map((e, i) => i === idx ? { ...e, beats: clamped } : e))
+  }
+
+  // Snaps the input's display back to whatever's actually committed —
+  // cleans up a leftover invalid/out-of-range draft (e.g. an emptied
+  // field, or "0") left behind when focus moves away without it ever
+  // having parsed to a valid value.
+  function handleChordBeatsBlur(idx: number) {
+    setChordBeatsDraft(String(timeline[idx]?.beats ?? 4))
   }
 
   // A section's boundaries are just the times of its first/last chord — once
@@ -630,10 +702,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // involved.
   function fillBeatsBetween(start: ChordEntry, next: ChordEntry): ChordEntry[] {
     const step = (next.time - start.time) / fillBeats
+    const cardBeats = start.beats ?? 4
     const newEntries: ChordEntry[] = []
     for (let b = 1; b < fillBeats; b++) {
       if (fillSkip.has(b)) continue
-      const beatSlot = Math.min(3, Math.round((b / fillBeats) * 4))
+      const beatSlot = Math.min(cardBeats - 1, Math.round((b / fillBeats) * cardBeats))
       newEntries.push({ time: start.time + step * b, chord: start.chord, tied: true, beatSlot })
     }
     return newEntries
@@ -1152,6 +1225,21 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
           <>
             <span className="timeline-popover-chord">{timeline[selectedIdx].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx].chord}</span>
             <span>@ {formatTime(timeline[selectedIdx].time)}</span>
+            <div className="fill-beats-control">
+              <span className="timeline-popover-hint">Beats:</span>
+              <input
+                type="number"
+                min={1}
+                max={16}
+                className="fill-beats-input"
+                value={chordBeatsDraft}
+                onChange={e => handleChordBeatsInput(selectedIdx, e.target.value)}
+                onBlur={() => handleChordBeatsBlur(selectedIdx)}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                disabled={locked}
+                title="How many beats this chord's card displays — its dots and progress-bar ticks"
+              />
+            </div>
             <span className="timeline-popover-hint">Click a chord below to change it · Esc to deselect</span>
             {selectedFillGroup ? (
               <>

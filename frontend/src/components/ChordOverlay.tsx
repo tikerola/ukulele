@@ -94,7 +94,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
                 <ChordDiagram chord={anchor.chord} data={chordDict[anchor.chord] ?? null} size={CHORD_SIZE} accentHeight={13.3} nameFontSize={20} />
                 <div className="chord-progress-track">
                   <div className="chord-progress-fill" data-progress-fill />
-                  <div className="chord-progress-ticks"><span /><span /><span /><span /></div>
+                  <div className="chord-progress-ticks">{dots.map((_, di) => <span key={di} />)}</div>
                 </div>
                 <div className="beat-dots">
                   {dots.map((state, di) => (

@@ -14,6 +14,13 @@ export interface ChordEntry {
   // lib/beatDots.ts. Undefined for the run's anchor (always quarter 0) and
   // for any pre-existing glued entry from before this field existed.
   beatSlot?: number
+  // How many beats this chord's card should display as spanning — drives
+  // the number of beat-dots and progress-bar tick marks drawn for it (see
+  // lib/beatDots.ts). Only meaningful on a group's anchor (its first
+  // entry); undefined means the default of 4. Lets a chord that's actually
+  // held for e.g. 2 beats read as "counts to 2" instead of always
+  // displaying against a nominal 4-beat bar.
+  beats?: number
 }
 
 export interface ChordData {

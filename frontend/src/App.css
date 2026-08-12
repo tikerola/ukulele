@@ -877,8 +877,9 @@ textarea { resize: vertical; }
 /* ─── Chord progress bar ──────────────────────────────────── */
 /* Counts down the active chord's remaining time. Always present (so the row
    doesn't reflow when a card becomes active) but only visible on the active
-   card; the tick marks are a fixed 4-way split, not tied to real beat data —
-   a visual echo of the beat-pulse rather than a literal beat grid. */
+   card; the tick marks split the bar into as many segments as the chord's
+   own beat count (see ChordEntry.beats in types/index.ts, default 4) — a
+   visual echo of the beat-pulse rather than a precise beat-by-beat clock. */
 
 .chord-progress-track {
   width: 100%;
@@ -937,11 +938,12 @@ textarea { resize: vertical; }
 }
 
 /* ─── Beat-hit dots ───────────────────────────────────────── */
-/* Four dots per chord card showing how many beats that chord's glued group
-   spans — how many times it blinks before the next chord change. A single
-   untied chord lights only the first dot; four beats glued together light
-   all four. Every beat in the group is equivalent, so every lit dot looks
-   the same — there's no separate "glued" color. */
+/* One dot per beat of the chord card (its `beats` field, default 4) showing
+   how many of them that chord's glued group actually hits — how many times
+   it blinks before the next chord change. A single untied chord lights only
+   the first dot; a fully glued run lights every dot. Every beat in the
+   group is equivalent, so every lit dot looks the same — there's no
+   separate "glued" color. */
 
 .beat-dots {
   display: flex;
