@@ -38,6 +38,12 @@ interface Props {
   endOffset?: number
   onStartOffsetChange: (time: number | undefined) => void
   onEndOffsetChange: (time: number | undefined) => void
+  // Whether Playalong shows lyrics on a tied section's active row — off by
+  // default (see TiedSectionsBoard.tsx), toggled here rather than in
+  // Playalong itself since it's a per-song authoring choice, not a viewing
+  // preference. One flag for the whole song, not per tie group.
+  showTiedLyrics: boolean
+  onShowTiedLyricsChange: (value: boolean) => void
 }
 
 const MIN_PPS = 10
@@ -51,7 +57,7 @@ const FILL_BEATS_STORAGE_KEY = 'ukesync-fill-beats'
 // pointerdown; only the drag-follows-the-cursor behavior is deferred.
 const DRAG_ACTIVATION_DELAY_MS = 150
 
-const SECTION_PRESETS = ['Intro', 'Verse', 'Chorus', 'Pre-Chorus', 'Instrumental']
+const SECTION_PRESETS = ['Intro', 'Verse', 'Chorus', 'Pre-Chorus', 'Instrumental', 'C-osa', 'Outro']
 
 const SECTION_COLORS: Record<string, string> = {
   intro: 'rgba(63, 185, 80, 0.45)',
@@ -127,7 +133,7 @@ function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }
   )
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, onPlay, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, onPlay, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange, showTiedLyrics, onShowTiedLyricsChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   // Captured at the start of a marker drag: which section(s) currently treat
@@ -161,6 +167,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // selection-changing click.
   const [renamingIdx, setRenamingIdx] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  // The tieGroup label currently being renamed (armed by the tie badge's
+  // ✎ button, disarmed by saving, Esc, or any other selection-changing
+  // click) — mirrors renamingIdx/renameValue's section-rename pattern.
+  const [renamingTieGroup, setRenamingTieGroup] = useState<string | null>(null)
+  const [tieRenameValue, setTieRenameValue] = useState('')
   // Remembered across sessions (not just within one) — once you've settled
   // on e.g. "8 beats, skip the offbeats" for how you tap in a song, that's
   // almost always still what you want the next time you open Creator.
@@ -312,11 +323,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       name: `${section.name},1`,
       startTime: section.startTime,
       endTime: timeline[entries[entryPos - 1]].time,
+      tieGroup: section.tieGroup,
     }
     const second: Section = {
       name: `${section.name},2`,
       startTime: timeline[entries[entryPos]].time,
       endTime: section.endTime,
+      tieGroup: section.tieGroup,
     }
     const nextSections = [...sections.filter((_, si) => si !== idx), first, second]
       .sort((a, b) => a.startTime - b.startTime)
@@ -341,6 +354,57 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     if (!section) return
     setRenamingIdx(idx)
     setRenameValue(section.name)
+  }
+
+  // True only when every one of `idxs` shares the same non-empty tieGroup —
+  // a mixed selection (some tied to each other, some not, or tied to a
+  // different group) is treated as "not yet one group", so the popover
+  // offers to merge them into a new one rather than assuming which existing
+  // group should win.
+  function commonTieGroup(idxs: number[]): string | null {
+    if (idxs.length === 0) return null
+    const first = sections[idxs[0]]?.tieGroup
+    if (!first) return null
+    return idxs.every(i => sections[i]?.tieGroup === first) ? first : null
+  }
+
+  // Groups the selected sections so Playalong stacks them as rows — the one
+  // currentTime falls into at full size, the rest smaller (see
+  // TiedSectionsBoard). The tie's label is auto-numbered to stay unique
+  // among tie groups already in use; it's just a plain editable name, same
+  // as a Section's own `name`, not an id — see beginRenameTieGroup.
+  function tieSections(idxs: number[]) {
+    if (locked || idxs.length < 2) return
+    const existing = new Set(sections.map(s => s.tieGroup).filter((g): g is string => !!g))
+    let n = 1
+    while (existing.has(`Tie ${n}`)) n++
+    const name = `Tie ${n}`
+    onBeginEdit()
+    const idxSet = new Set(idxs)
+    onSectionsChange(sections.map((s, si) => idxSet.has(si) ? { ...s, tieGroup: name } : s))
+  }
+
+  function untieSections(idxs: number[]) {
+    if (locked) return
+    onBeginEdit()
+    const idxSet = new Set(idxs)
+    onSectionsChange(sections.map((s, si) => idxSet.has(si) ? { ...s, tieGroup: undefined } : s))
+  }
+
+  function beginRenameTieGroup(name: string) {
+    if (locked) return
+    setRenamingTieGroup(name)
+    setTieRenameValue(name)
+  }
+
+  function commitTieRename() {
+    if (locked || renamingTieGroup === null) return
+    const oldName = renamingTieGroup
+    const name = tieRenameValue.trim()
+    setRenamingTieGroup(null)
+    if (!name || name === oldName) return
+    onBeginEdit()
+    onSectionsChange(sections.map(s => s.tieGroup === oldName ? { ...s, tieGroup: name } : s))
   }
 
   function commitRename() {
@@ -880,6 +944,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       if (e.key === 'Escape') {
         if (splitPick !== null) { setSplitPick(null); return }
         if (renamingIdx !== null) { setRenamingIdx(null); return }
+        if (renamingTieGroup !== null) { setRenamingTieGroup(null); return }
         setRangeSel(null)
         setAnchorIdx(null)
         setSelectedSectionIdxs([])
@@ -900,7 +965,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo, splitPick, renamingIdx])
+  }, [selectedIdx, timeline, locked, selectedSectionIdxs, sections, rangeSel, canUndo, canRedo, splitPick, renamingIdx, renamingTieGroup])
 
   // Keeps the playhead centered in the visible area at all times, rather
   // than only snapping the view once the playhead nears an edge — so the
@@ -1063,10 +1128,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                   }}
                   onClick={e => handleSectionClick(e, i)}
                   onPointerDown={e => handleSectionPointerDown(e, i)}
-                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${hasLyrics ? ' — has lyrics' : ''}${locked ? '' : ' — drag to move, click to select, shift+click to select multiple'}`}
+                  title={`${s.name} (${formatTime(s.startTime)}–${formatTime(s.endTime)})${hasLyrics ? ' — has lyrics' : ''}${s.tieGroup ? ` — tied: ${s.tieGroup}` : ''}${locked ? '' : ' — drag to move, click to select, shift+click to select multiple'}`}
                 >
                   <span className="timeline-section-label">{s.name}</span>
                   {hasLyrics && <span className="timeline-section-lyrics-icon" title="Lyrics added for this section">♪</span>}
+                  {s.tieGroup && <span className="timeline-section-tie-icon" title={`Tied: ${s.tieGroup}`}>🔗</span>}
                   {!locked && (
                     <button
                       className="timeline-section-delete"
@@ -1221,6 +1287,22 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <button className="btn-small" disabled={!renameValue.trim()} onClick={commitRename}>Save</button>
             <button className="btn-ghost" onClick={() => setRenamingIdx(null)}>Cancel</button>
           </>
+        ) : renamingTieGroup !== null && commonTieGroup(selectedSectionIdxs) === renamingTieGroup ? (
+          <>
+            <span className="timeline-popover-hint">Rename tie group:</span>
+            <input
+              className="section-name-input"
+              autoFocus
+              value={tieRenameValue}
+              onChange={e => setTieRenameValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitTieRename()
+                else if (e.key === 'Escape') setRenamingTieGroup(null)
+              }}
+            />
+            <button className="btn-small" disabled={!tieRenameValue.trim()} onClick={commitTieRename}>Save</button>
+            <button className="btn-ghost" onClick={() => setRenamingTieGroup(null)}>Cancel</button>
+          </>
         ) : selectedIdx !== null && timeline[selectedIdx] ? (
           <>
             <span className="timeline-popover-chord">{timeline[selectedIdx].chord === COUNT_IN_CHORD ? 'Count-in' : timeline[selectedIdx].chord}</span>
@@ -1289,6 +1371,29 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onClick={() => beginSplitPick(selectedSectionIdxs[0])}
               title="Pick a chord to split this section at — the section becomes two, named e.g. ‘Name,1’ and ‘Name,2’"
             >✂ Split…</button>
+            {sections[selectedSectionIdxs[0]].tieGroup && (
+              <>
+                <span className="popover-divider" />
+                <span className="timeline-popover-hint tied-badge" title="Shown stacked with the rest of this tie group in Playalong">
+                  🔗 {sections[selectedSectionIdxs[0]].tieGroup}
+                </span>
+                <button
+                  className="btn-small"
+                  onClick={() => beginRenameTieGroup(sections[selectedSectionIdxs[0]].tieGroup!)}
+                  title="Rename this tie group"
+                >✎ Rename tie</button>
+                <button
+                  className="btn-small"
+                  onClick={() => untieSections(selectedSectionIdxs)}
+                  title="Remove this section from its tie group"
+                >🔗✕ Untie</button>
+                <button
+                  className={`btn-small${showTiedLyrics ? ' btn-small-active' : ''}`}
+                  onClick={() => onShowTiedLyricsChange(!showTiedLyrics)}
+                  title={showTiedLyrics ? 'Hide lyrics on tied sections in Playalong' : 'Show lyrics on tied sections in Playalong — off by default since they already share space with the smaller preview rows'}
+                >{showTiedLyrics ? '📝 Tied lyrics' : '🙈 Tied lyrics'}</button>
+              </>
+            )}
             <span className="popover-divider" />
             <div className="fill-beats-control">
               <span className="timeline-popover-hint">Fill every bare gap in this section ·</span>
@@ -1312,6 +1417,35 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
               onClick={() => duplicateSections(selectedSectionIdxs)}
               title="Duplicate, placed one chord-change interval after the last chord — continuing this section's own rhythm instead of appending at the very end"
             >⎘ Duplicate</button>
+            <span className="popover-divider" />
+            {commonTieGroup(selectedSectionIdxs) ? (
+              <>
+                <span className="timeline-popover-hint tied-badge" title="Shown stacked together in Playalong — the one currently playing at full size, the rest smaller">
+                  🔗 {commonTieGroup(selectedSectionIdxs)}
+                </span>
+                <button
+                  className="btn-small"
+                  onClick={() => beginRenameTieGroup(commonTieGroup(selectedSectionIdxs)!)}
+                  title="Rename this tie group"
+                >✎ Rename tie</button>
+                <button
+                  className="btn-small"
+                  onClick={() => untieSections(selectedSectionIdxs)}
+                  title="Stop showing these sections together"
+                >🔗✕ Untie sections</button>
+                <button
+                  className={`btn-small${showTiedLyrics ? ' btn-small-active' : ''}`}
+                  onClick={() => onShowTiedLyricsChange(!showTiedLyrics)}
+                  title={showTiedLyrics ? 'Hide lyrics on tied sections in Playalong' : 'Show lyrics on tied sections in Playalong — off by default since they already share space with the smaller preview rows'}
+                >{showTiedLyrics ? '📝 Tied lyrics' : '🙈 Tied lyrics'}</button>
+              </>
+            ) : (
+              <button
+                className="btn-small"
+                onClick={() => tieSections(selectedSectionIdxs)}
+                title="Show these sections stacked together in Playalong — whichever one is currently playing shows at full size, the rest smaller"
+              >🔗 Tie sections</button>
+            )}
             <span className="popover-divider" />
             <div className="fill-beats-control">
               <span className="timeline-popover-hint">Fill every bare gap in these sections ·</span>

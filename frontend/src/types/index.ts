@@ -37,6 +37,13 @@ export interface Section {
   name: string
   startTime: number
   endTime: number
+  // Sections sharing the same (non-empty) tieGroup value are shown stacked
+  // together in Playalong — whichever one currentTime falls into renders at
+  // normal size, the others as smaller preview rows above/below it. The
+  // string itself doubles as the group's display name (editable from the
+  // Creator's multi-select popover), the same way a Section's own `name`
+  // is just a plain label rather than an id.
+  tieGroup?: string
 }
 
 export interface CreatorSnapshot {
@@ -48,6 +55,11 @@ export interface CreatorSnapshot {
   endOffset?: number
   locked?: boolean
   showNextChordPreview?: boolean
+  // Off by default — a tie group's active row already competes for space
+  // with its smaller preview rows, so lyrics stay hidden there until the
+  // user opts in via Playalong's header toggle. Doesn't affect an untied
+  // section's own lyrics, which always show when present.
+  showTiedLyrics?: boolean
 }
 
 export interface SavedSong {

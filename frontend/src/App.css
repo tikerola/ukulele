@@ -614,6 +614,70 @@ textarea { resize: vertical; }
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── Tied Sections Board (Playalong) ─────────────────────── */
+/* Stacks a tie group's sections as rows, one per section, in song order —
+   the row for whichever section currentTime falls into renders the real
+   <SectionChordBoard> (full size, live pulse/lyrics/next-preview); the
+   other rows are static, smaller previews (TiedSectionsBoard.tsx) a viewer
+   can tap to jump ahead/back. Takes over .section-board's old role as the
+   flex:1 child of .player-left — the active row's own nested .section-board
+   still supplies its background/border/scroll, so this wrapper stays
+   unstyled beyond layout. */
+.tied-sections-board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tied-section-row {
+  flex-shrink: 0;
+}
+
+.tied-section-row-active {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* No border here — tied rows read as one continuous carousel rather than a
+   list of separate sections. */
+.tied-section-row-active .section-board {
+  flex: 1;
+  border-top: none;
+}
+
+.tied-section-row-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.tied-section-row-preview:hover {
+  opacity: 1;
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.tied-section-preview-chords {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tied-section-preview-chord {
+  flex-shrink: 0;
+}
+
 /* ─── Section Board (Playalong) ───────────────────────────── */
 
 .section-board {
@@ -1681,6 +1745,19 @@ kbd {
   line-height: 1;
   color: #ffd700;
   margin-right: 4px;
+}
+
+.timeline-section-tie-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--primary);
+  margin-right: 4px;
+}
+
+.tied-badge {
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .timeline-section-delete {

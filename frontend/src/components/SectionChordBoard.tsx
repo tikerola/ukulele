@@ -28,7 +28,7 @@ interface Props {
   lyricsZoom?: number
 }
 
-const BASE_CHORD_SIZE = 1.68
+export const BASE_CHORD_SIZE = 1.68
 const BASE_CHORD_GAP = 20
 // A section that wraps onto multiple rows shows only the row containing the
 // active chord at full (defined) size — every other row shrinks to this

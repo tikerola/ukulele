@@ -130,10 +130,21 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
         nextChord: null as string | null,
         activeChordEndTime: null as number | null,
         isLastChordActive: false,
+        tieGroupSections: [] as { section: Section; entries: ChordEntry[] }[],
       }
     }
 
     const { entries, nextEntry } = window
+
+    // Every section sharing this one's tieGroup label (itself included),
+    // in song order — Playalong stacks these as rows instead of showing
+    // `section` alone. No tieGroup means a "group" of just this section, so
+    // callers can treat the two cases identically instead of branching.
+    const tieGroupSections = section.tieGroup
+      ? sorted
+          .filter(s => s.tieGroup === section!.tieGroup)
+          .map(s => ({ section: s, entries: sectionWindow(s, timeline).entries }))
+      : [{ section, entries }]
     let activeIdx = -1
     for (let i = entries.length - 1; i >= 0; i--) {
       if (currentTime >= entries[i].time) { activeIdx = i; break }
@@ -169,6 +180,7 @@ export function useSectionChords(timeline: ChordEntry[], sections: Section[], cu
       nextChord: nextEntry?.chord ?? null,
       activeChordEndTime,
       isLastChordActive,
+      tieGroupSections,
     }
   }, [timeline, sections, currentTime])
 }

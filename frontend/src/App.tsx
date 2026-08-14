@@ -2,6 +2,7 @@ import { useId, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ChordDictionary, ChordEntry, AppState, CreatorSnapshot, Section, SavedSong } from './types'
 import { ChordOverlay } from './components/ChordOverlay'
 import { SectionChordBoard } from './components/SectionChordBoard'
+import { TiedSectionsBoard } from './components/TiedSectionsBoard'
 import { RecordingView } from './components/RecordingView'
 import { formatTime } from './components/Timeline'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
@@ -300,6 +301,8 @@ function PlayalongView({
   endOffset,
   showNextChordPreview,
   onShowNextChordPreviewChange,
+  showTiedLyrics,
+  initialSeekTime,
   onToCreator,
   onReset,
 }: {
@@ -312,6 +315,14 @@ function PlayalongView({
   endOffset?: number
   showNextChordPreview: boolean
   onShowNextChordPreviewChange: (value: boolean) => void
+  // Whether to show lyrics on a tied section's active row — authored in
+  // Creator (Timeline's tie-group popover), not toggled here.
+  showTiedLyrics: boolean
+  // Where the Creator's own timeline playhead sat when the user switched to
+  // Playalong — carried over so playback picks up from the same spot
+  // instead of resetting to the start. Mirrors initialSeekTime's Creator-
+  // side counterpart in RecordingView.tsx, for the opposite direction.
+  initialSeekTime?: number
   onToCreator: (time: number) => void
   onReset: () => void
 }) {
@@ -354,6 +365,20 @@ function PlayalongView({
   // during playback.
   const currentTimeRef = useRef(currentTime)
   currentTimeRef.current = currentTime
+  // Applies the carried-over Creator playhead position exactly once, as
+  // soon as the player can actually accept a seek — mirrors RecordingView's
+  // own appliedInitialSeekRef for the opposite direction. Explicitly paused
+  // right after, since YouTube's player has a habit of resuming playback on
+  // its own once a seek lands, which would otherwise start the video
+  // running the instant Playalong opens.
+  const appliedInitialSeekRef = useRef(false)
+  useEffect(() => {
+    if (!isReady || appliedInitialSeekRef.current || initialSeekTime == null) return
+    appliedInitialSeekRef.current = true
+    seekTo(initialSeekTime)
+    pause()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, initialSeekTime])
   const { playChord } = useChordAudio()
   // A local audio file's own audio should never play alongside the video's —
   // applied whenever usingAudioFile changes and whenever the player becomes
@@ -385,7 +410,7 @@ function PlayalongView({
   // get silently dropped by the section's own time-window filtering.
   const chordTimeline = useMemo(() => timeline.filter(e => e.chord !== COUNT_IN_CHORD), [timeline])
   const countInEntries = useMemo(() => timeline.filter(e => e.chord === COUNT_IN_CHORD), [timeline])
-  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, isLastChordActive } = useSectionChords(chordTimeline, sections, currentTime)
+  const { section, entries, activeIdx, nextSection, nextChord, activeChordEndTime, isLastChordActive, tieGroupSections } = useSectionChords(chordTimeline, sections, currentTime)
 
   // The section whose chords lead the song — count-in dots ride along with
   // it (and with ChordOverlay's first batch, in the no-sections case) so
@@ -617,26 +642,58 @@ function PlayalongView({
             <PlaybackBar currentTime={currentTime} duration={duration} startOffset={startOffset} endOffset={endOffset} onSeek={seekTo} />
           )}
           {section ? (
-            <SectionChordBoard
-              section={section}
-              entries={entries}
-              activeIdx={activeIdx}
-              nextChord={nextChord}
-              activeChordEndTime={activeChordEndTime}
-              currentTime={currentTime}
-              chordDict={chordDict}
-              onPulse={handlePulse}
-              showNextPreview={showNextChordPreview}
-              isLastChordActive={isLastChordActive}
-              countInEntries={countInEntries}
-              isFirstSection={section === firstSection}
-              lyrics={lyricsBySection.get(section)}
-              nextLyrics={nextLyrics}
-              hasLyrics={hasLyrics}
-              maxLyricsLines={maxLyricsLines}
-              chordZoom={chordZoom}
-              lyricsZoom={lyricsZoom}
-            />
+            tieGroupSections.length > 1 ? (
+              <TiedSectionsBoard
+                members={tieGroupSections}
+                activeSection={section}
+                chordDict={chordDict}
+                chordZoom={chordZoom}
+                onSeek={seekTo}
+                activeBoard={
+                  <SectionChordBoard
+                    section={section}
+                    entries={entries}
+                    activeIdx={activeIdx}
+                    nextChord={nextChord}
+                    activeChordEndTime={activeChordEndTime}
+                    currentTime={currentTime}
+                    chordDict={chordDict}
+                    onPulse={handlePulse}
+                    showNextPreview={showNextChordPreview}
+                    isLastChordActive={isLastChordActive}
+                    countInEntries={countInEntries}
+                    isFirstSection={section === firstSection}
+                    lyrics={showTiedLyrics ? lyricsBySection.get(section) : undefined}
+                    nextLyrics={showTiedLyrics ? nextLyrics : undefined}
+                    hasLyrics={hasLyrics && showTiedLyrics}
+                    maxLyricsLines={maxLyricsLines}
+                    chordZoom={chordZoom}
+                    lyricsZoom={lyricsZoom}
+                  />
+                }
+              />
+            ) : (
+              <SectionChordBoard
+                section={section}
+                entries={entries}
+                activeIdx={activeIdx}
+                nextChord={nextChord}
+                activeChordEndTime={activeChordEndTime}
+                currentTime={currentTime}
+                chordDict={chordDict}
+                onPulse={handlePulse}
+                showNextPreview={showNextChordPreview}
+                isLastChordActive={isLastChordActive}
+                countInEntries={countInEntries}
+                isFirstSection={section === firstSection}
+                lyrics={lyricsBySection.get(section)}
+                nextLyrics={nextLyrics}
+                hasLyrics={hasLyrics}
+                maxLyricsLines={maxLyricsLines}
+                chordZoom={chordZoom}
+                lyricsZoom={lyricsZoom}
+              />
+            )
           ) : (
             <ChordOverlay
               timeline={chordTimeline}
@@ -671,6 +728,10 @@ export default function App() {
   // the video's current time) picks up right where playback was left off
   // instead of resetting to the start.
   const [creatorSeekTime, setCreatorSeekTime] = useState<number | undefined>(undefined)
+  // The reverse of creatorSeekTime — where Creator's own timeline playhead
+  // sat when the user switched to Playalong, so playback picks up from that
+  // same spot instead of resetting to the start.
+  const [playalongSeekTime, setPlayalongSeekTime] = useState<number | undefined>(undefined)
 
   const refreshSavedSongs = useCallback(() => {
     fetch(`${API}/songs`)
@@ -733,11 +794,12 @@ export default function App() {
     }).catch(() => {})
   }, [videoId, chords])
 
-  function handleCreatorDone(taps: ChordEntry[], snapshot: CreatorSnapshot) {
+  function handleCreatorDone(taps: ChordEntry[], snapshot: CreatorSnapshot, seekTime: number) {
     setTimeline(taps)
     setCreatorSnapshot(snapshot)
     setAppState('playalong')
     setCreatorSeekTime(undefined)
+    setPlayalongSeekTime(seekTime)
     saveSnapshot(snapshot)
   }
 
@@ -756,6 +818,7 @@ export default function App() {
     setTimeline([])
     setCreatorSnapshot(null)
     setCreatorSeekTime(undefined)
+    setPlayalongSeekTime(undefined)
     setError(null)
     refreshSavedSongs()
   }
@@ -788,6 +851,8 @@ export default function App() {
         endOffset={creatorSnapshot?.endOffset}
         showNextChordPreview={creatorSnapshot?.showNextChordPreview ?? true}
         onShowNextChordPreviewChange={setShowNextChordPreview}
+        showTiedLyrics={creatorSnapshot?.showTiedLyrics ?? false}
+        initialSeekTime={playalongSeekTime}
         onToCreator={time => { setCreatorSeekTime(time); setAppState('creator') }}
         onReset={handleReset}
       />

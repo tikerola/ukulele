@@ -32,7 +32,7 @@ interface Props {
   // Playalong mid-song, so playback picks up where it was left off instead
   // of resetting to the start.
   initialSeekTime?: number
-  onDone: (timeline: ChordEntry[], snapshot: CreatorSnapshot) => void
+  onDone: (timeline: ChordEntry[], snapshot: CreatorSnapshot, seekTime: number) => void
   onSnapshotChange: (snapshot: CreatorSnapshot) => void
   onChordsChange: (chords: string[]) => void
   onBack: () => void
@@ -72,6 +72,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
   const [endOffset, setEndOffset] = useState<number | undefined>(initialSnapshot?.endOffset)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(initialSnapshot?.locked ?? !!initialSnapshot?.timeline.length)
+  const [showTiedLyrics, setShowTiedLyrics] = useState(initialSnapshot?.showTiedLyrics ?? false)
   const [past, setPast] = useState<Snapshot[]>([])
   const [future, setFuture] = useState<Snapshot[]>([])
 
@@ -204,10 +205,11 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     const t = setTimeout(() => onSnapshotChange({
       timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
       showNextChordPreview: initialSnapshot?.showNextChordPreview,
+      showTiedLyrics,
     }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked])
+  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked, showTiedLyrics])
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -379,7 +381,8 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
             onClick={() => onDone(timeline, {
               timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
               showNextChordPreview: initialSnapshot?.showNextChordPreview,
-            })}
+              showTiedLyrics,
+            }, currentTimeRef.current)}
             disabled={timeline.length === 0}
             title={timeline.length === 0 ? 'Record at least one chord first' : 'Switch to Playalong'}
           >
@@ -460,6 +463,8 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
               endOffset={endOffset}
               onStartOffsetChange={setStartOffset}
               onEndOffsetChange={setEndOffset}
+              showTiedLyrics={showTiedLyrics}
+              onShowTiedLyricsChange={setShowTiedLyrics}
             />
           ) : (
             <div className="timeline-loading">Waiting for video to load…</div>
