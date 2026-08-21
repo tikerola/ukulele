@@ -8,12 +8,21 @@ interface Props {
   size?: number
   accentHeight?: number
   nameFontSize?: number
+  // When set, the diagram becomes editable: each string gets a click
+  // target spanning its column, and its open-string letter is shown above
+  // the nut (instead of staying blank) so it's clear which string is which
+  // before muting it. Passed only by the Creator's chord-tile editor —
+  // every other place this component is used (the live tap strip, overlays,
+  // count-in preview) leaves it unset and renders exactly as before.
+  onToggleString?: (stringIndex: number) => void
 }
 
 const STRINGS = 4
 const FRETS_SHOWN = 4
+const STRING_NAMES = ['G', 'C', 'E', 'A']
+const DOT_R = 7
 
-export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFontSize = 10 }: Props) {
+export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFontSize = 10, onToggleString }: Props) {
   const vW = 90
   // Chord-name row grows with nameFontSize so a bigger label never overlaps the fretboard.
   const vH = 105 + nameFontSize
@@ -24,7 +33,6 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
   const nutY = 26
   const fretH = 18
   const fretY = (f: number) => nutY + fretH * f
-  const topY = 10
 
   const color = getChordColor(chord)
   const clipId = `chord-card-${useId().replace(/:/g, '')}`
@@ -60,7 +68,7 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
       {/* Nut */}
       {offset === 0
         ? <rect x={strX[0]} y={nutY - 3} width={strX[STRINGS - 1] - strX[0]} height={3} fill="#f4e6cc" />
-        : <text x={strX[STRINGS - 1] + 6} y={nutY + fretH * 0.6} fontSize={8} fill="#b99b78">{offset + 1}fr</text>
+        : <text x={strX[STRINGS - 1] + 6} y={nutY - 6} fontSize={8} fill="#b99b78">{offset + 1}fr</text>
       }
 
       {/* Fret lines */}
@@ -81,11 +89,37 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         />
       ))}
 
-      {/* Muted string indicators */}
+      {/* Muted string indicators — the × straddles the nut line itself (the
+          standard chord-chart convention), which also keeps it clear of the
+          accent bar above: the 13.3 accentHeight most callers (Playalong
+          overlay, section boards) actually use only reaches y=14.3, well
+          short of the nut at y=26. In edit mode, an unmuted string shows
+          its open letter above the nut instead of staying blank, so it's
+          clear which column mutes which string before clicking it. */}
       {frets.map((fret, i) => {
         if (fret === -1) {
+          // Drawn as two crossing strokes rather than a text glyph, so its
+          // size can be pinned exactly to DOT_R (the finger dots' radius)
+          // instead of guessing at a font-size-to-glyph-size ratio: its
+          // corners just touch a circle of radius DOT_R, so it reads as
+          // "about as big as a finger dot, barely fitting inside one."
+          // Centered on the nut rect's own vertical center (nutY-3 to
+          // nutY), so the X's crossing point lands exactly on the nut.
+          const cx = strX[i]
+          const cy = nutY - 1.5
+          const r = DOT_R / Math.SQRT2
           return (
-            <text key={i} x={strX[i]} y={topY + 4} textAnchor="middle" fill="#8a6f54" fontSize={10}>×</text>
+            <g key={i}>
+              <line x1={cx - r} y1={cy - r} x2={cx + r} y2={cy + r} stroke="#f4e6cc" strokeWidth={2.2} strokeLinecap="round" />
+              <line x1={cx - r} y1={cy + r} x2={cx + r} y2={cy - r} stroke="#f4e6cc" strokeWidth={2.2} strokeLinecap="round" />
+            </g>
+          )
+        }
+        if (onToggleString) {
+          return (
+            <text key={i} x={strX[i]} y={nutY - 5} textAnchor="middle" fill="#6b5744" fontSize={8} style={{ pointerEvents: 'none' }}>
+              {STRING_NAMES[i]}
+            </text>
           )
         }
         return null
@@ -97,13 +131,35 @@ export function ChordDiagram({ chord, data, size = 1, accentHeight = 10, nameFon
         const display = fret - offset
         if (display < 1 || display > FRETS_SHOWN) return null
         const cy = fretY(display - 1) + fretH / 2
-        return <circle key={i} cx={strX[i]} cy={cy} r={7} fill="#f4e6cc" />
+        return <circle key={i} cx={strX[i]} cy={cy} r={DOT_R} fill="#f4e6cc" style={onToggleString ? { pointerEvents: 'none' } : undefined} />
       })}
 
       {/* Chord name */}
       <text x={vW / 2} y={vH - 5} textAnchor="middle" fill="#f4e6cc" fontSize={nameFontSize} fontWeight="bold" fontFamily="'Fraunces', Georgia, serif">
         {chord}
       </text>
+
+      {/* Per-string click targets — one invisible column per string,
+          spanning nut to the last fret shown, toggling that string between
+          played and muted (×). stopPropagation so a click here doesn't also
+          reach a wrapping click handler (there isn't one currently, since
+          this only renders inside the chord-tile editor's plain <div>, but
+          keeping the diagram self-contained means it stays safe to drop
+          into a clickable wrapper later without silently double-firing). */}
+      {onToggleString && strX.map((x, i) => (
+        <rect
+          key={i}
+          className="chord-string-hit"
+          x={x - 8}
+          y={nutY - 4}
+          width={16}
+          height={fretY(FRETS_SHOWN) - nutY + 4}
+          fill="transparent"
+          onClick={e => { e.stopPropagation(); onToggleString(i) }}
+        >
+          <title>{frets[i] === -1 ? `Unmute the ${STRING_NAMES[i]} string` : `Mute the ${STRING_NAMES[i]} string`}</title>
+        </rect>
+      ))}
     </svg>
   )
 }

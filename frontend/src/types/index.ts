@@ -60,6 +60,12 @@ export interface CreatorSnapshot {
   // user opts in via Playalong's header toggle. Doesn't affect an untied
   // section's own lyrics, which always show when present.
   showTiedLyrics?: boolean
+  // Per-song fingering tweaks (currently just string mutes) layered on top
+  // of the global chord dictionary — e.g. this song's G# should skip its G
+  // string. Keyed by chord name; only chords with an actual edit are
+  // present. Scoped to this song rather than the dictionary itself, so
+  // customizing one song's G# doesn't change every other song's G#.
+  chordOverrides?: ChordDictionary
 }
 
 export interface SavedSong {

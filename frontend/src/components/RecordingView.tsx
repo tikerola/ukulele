@@ -18,6 +18,8 @@ interface Snapshot {
   sections: Section[]
   referencePointer: number
   lyrics: string
+  chords: string[]
+  chordOverrides: ChordDictionary
 }
 
 const HISTORY_LIMIT = 20
@@ -73,6 +75,10 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(initialSnapshot?.locked ?? !!initialSnapshot?.timeline.length)
   const [showTiedLyrics, setShowTiedLyrics] = useState(initialSnapshot?.showTiedLyrics ?? false)
+  // Per-song fingering tweaks (currently just string mutes), layered over
+  // the (global, read-only here) chordDict prop — see effectiveChordDict
+  // below for where the two get merged for display/playback.
+  const [chordOverrides, setChordOverrides] = useState<ChordDictionary>(initialSnapshot?.chordOverrides ?? {})
   const [past, setPast] = useState<Snapshot[]>([])
   const [future, setFuture] = useState<Snapshot[]>([])
 
@@ -160,7 +166,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
   // actions (like splitting a section) rewrite a lyrics tag as a side
   // effect, and undoing that action should put the tag back too.
   function recordHistory() {
-    setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText }].slice(-HISTORY_LIMIT))
+    setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText, chords, chordOverrides }].slice(-HISTORY_LIMIT))
     setFuture([])
   }
 
@@ -168,11 +174,13 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     setPast(p => {
       if (p.length === 0) return p
       const prev = p[p.length - 1]
-      setFuture(f => [{ timeline, sections, referencePointer, lyrics: lyricsText }, ...f].slice(0, HISTORY_LIMIT))
+      setFuture(f => [{ timeline, sections, referencePointer, lyrics: lyricsText, chords, chordOverrides }, ...f].slice(0, HISTORY_LIMIT))
       setTimeline(prev.timeline)
       setSections(prev.sections)
       setReferencePointer(prev.referencePointer)
       setLyricsText(prev.lyrics)
+      onChordsChange(prev.chords)
+      setChordOverrides(prev.chordOverrides)
       setSelectedIdx(null)
       return p.slice(0, -1)
     })
@@ -182,11 +190,13 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     setFuture(f => {
       if (f.length === 0) return f
       const next = f[0]
-      setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText }].slice(-HISTORY_LIMIT))
+      setPast(p => [...p, { timeline, sections, referencePointer, lyrics: lyricsText, chords, chordOverrides }].slice(-HISTORY_LIMIT))
       setTimeline(next.timeline)
       setSections(next.sections)
       setReferencePointer(next.referencePointer)
       setLyricsText(next.lyrics)
+      onChordsChange(next.chords)
+      setChordOverrides(next.chordOverrides)
       setSelectedIdx(null)
       return f.slice(1)
     })
@@ -205,11 +215,22 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     const t = setTimeout(() => onSnapshotChange({
       timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
       showNextChordPreview: initialSnapshot?.showNextChordPreview,
-      showTiedLyrics,
+      showTiedLyrics, chordOverrides,
     }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked, showTiedLyrics])
+  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked, showTiedLyrics, chordOverrides])
+
+  // The dictionary actually used for lookups/display/playback — the global
+  // chordDict prop with this song's per-chord string-mute edits laid over
+  // it. Recomputed only when either side changes, so components that just
+  // read from it (ChordTapStrip) don't re-render on every unrelated state
+  // change the way they would if this object were rebuilt inline on every
+  // render.
+  const effectiveChordDict = useMemo(
+    () => Object.keys(chordOverrides).length === 0 ? chordDict : { ...chordDict, ...chordOverrides },
+    [chordDict, chordOverrides]
+  )
 
   const { currentIdx } = useChordSync(timeline, currentTime)
   const lastPulseIdxRef = useRef(-1)
@@ -222,13 +243,13 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     const data = chord ? getChordData(chord) : null
     if (data) playChord(data.frets)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIdx, isPlaying, soundOn, timeline, playChord])
+  }, [currentIdx, isPlaying, soundOn, timeline, playChord, effectiveChordDict])
 
   function getChordData(chord: string) {
-    if (chordDict[chord]) return chordDict[chord]
+    if (effectiveChordDict[chord]) return effectiveChordDict[chord]
     const lower = chord.toLowerCase()
-    for (const key of Object.keys(chordDict)) {
-      if (key.toLowerCase() === lower) return chordDict[key]
+    for (const key of Object.keys(effectiveChordDict)) {
+      if (key.toLowerCase() === lower) return effectiveChordDict[key]
     }
     return null
   }
@@ -247,7 +268,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     setTimeline(prev => [...prev, { time: currentTimeRef.current, chord }].sort((a, b) => a.time - b.time))
     setReferencePointer(p => Math.min(p + 1, referenceItems.length))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soundOn, chordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
+  }, [soundOn, effectiveChordDict, playChord, selectedIdx, locked, timeline, sections, referencePointer, referenceItems.length])
 
   // A count-in tick has no chord sound and no corresponding lyrics/reference
   // item, so unlike assignChord it skips both the chord-audio playback and
@@ -265,14 +286,68 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, locked, timeline, sections])
 
+  // Replaces one chord in the palette with a different chord name, in the
+  // same slot (so its keyboard shortcut number doesn't shift), and rewrites
+  // every timeline entry currently using the old chord to the new one —
+  // e.g. swapping a wrong voicing or fixing a typo'd quality without having
+  // to re-tap every place it was already recorded. Unlike handleTranspose
+  // below, this *is* routed through recordHistory/undo, since (a) it can't
+  // undo itself the way a transpose can, and (b) unlike a transpose it can
+  // silently merge two palette entries into one if the new name collides
+  // with an existing chord.
+  const handleRenameChord = useCallback((oldChord: string, newChord: string) => {
+    if (locked || !oldChord || !newChord || newChord === oldChord) return
+    recordHistory()
+    onChordsChange(chords.map(c => c === oldChord ? newChord : c))
+    setTimeline(prev => prev.map(entry => entry.chord === oldChord ? { ...entry, chord: newChord } : entry))
+    // Carries any string-mute edit over to the new name too — otherwise a
+    // rename would silently drop back to the dictionary's stock fingering.
+    setChordOverrides(prev => {
+      if (!(oldChord in prev)) return prev
+      const next: ChordDictionary = { ...prev }
+      next[newChord] = next[oldChord]
+      delete next[oldChord]
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, chords, onChordsChange, timeline, sections, chordOverrides])
+
+  // Toggles one string of a palette chord between played and muted (e.g.
+  // this song's G# should skip its G string), layering the change into
+  // chordOverrides rather than the shared dictionary — see
+  // effectiveChordDict above. Un-muting a string restores the dictionary's
+  // own fret for it (not open/0), so it comes back as the original
+  // fingering rather than a different chord. Routed through
+  // recordHistory/undo the same as any other tap-strip edit, one click at
+  // a time.
+  const handleToggleChordString = useCallback((chord: string, stringIndex: number) => {
+    if (locked) return
+    const canonical = chordDict[chord]?.frets
+    if (!canonical) return
+    recordHistory()
+    setChordOverrides(prev => {
+      const current = prev[chord]?.frets ?? canonical
+      const next = [...current] as typeof canonical
+      next[stringIndex] = next[stringIndex] === -1 ? canonical[stringIndex] : -1
+      if (next.every((f, i) => f === canonical[i])) {
+        if (!(chord in prev)) return prev
+        const rest: ChordDictionary = { ...prev }
+        delete rest[chord]
+        return rest
+      }
+      return { ...prev, [chord]: { frets: next } }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, chordDict, timeline, sections])
+
   // Rewrites the chord palette, every real timeline entry (count-in ticks
   // are untouched — they're not chords) and any chord tokens in the pasted
   // reference text, all by the same amount — e.g. for practicing along to a
   // pitch-shifted copy of the video that's no longer in the original key.
-  // Not routed through recordHistory/undo (reference text and the chord
-  // palette aren't part of that history to begin with, see Snapshot above) —
-  // instead it's just its own inverse: transposing +1 then -1 lands back
-  // exactly where it started, so the opposite button *is* the undo.
+  // Not routed through recordHistory/undo (reference text isn't part of
+  // that history to begin with, see Snapshot above) — instead it's just its
+  // own inverse: transposing +1 then -1 lands back exactly where it
+  // started, so the opposite button *is* the undo.
   const handleTranspose = useCallback((semitones: number) => {
     if (locked) return
     onChordsChange(chords.map(c => transposeChord(c, semitones)))
@@ -280,6 +355,14 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
       ? entry
       : { ...entry, chord: transposeChord(entry.chord, semitones) }))
     setReferenceText(prev => transposeReferenceText(prev, semitones))
+    // String-mute edits follow their chord's name the same way the palette
+    // and timeline do, so transposing +1 then -1 is still its own exact
+    // undo (see comment above) instead of losing the override partway.
+    setChordOverrides(prev => {
+      const next: ChordDictionary = {}
+      for (const name of Object.keys(prev)) next[transposeChord(name, semitones)] = prev[name]
+      return next
+    })
   }, [locked, chords, onChordsChange])
 
   // Holding Alt while the video plays arms punch-in overwrite: any chord
@@ -381,7 +464,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
             onClick={() => onDone(timeline, {
               timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
               showNextChordPreview: initialSnapshot?.showNextChordPreview,
-              showTiedLyrics,
+              showTiedLyrics, chordOverrides,
             }, currentTimeRef.current)}
             disabled={timeline.length === 0}
             title={timeline.length === 0 ? 'Record at least one chord first' : 'Switch to Playalong'}
@@ -488,12 +571,14 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
             </div>
             <ChordTapStrip
               chords={chords}
-              chordDict={chordDict}
+              chordDict={effectiveChordDict}
               currentChord={selectedIdx !== null ? timeline[selectedIdx]?.chord ?? null : null}
               locked={locked}
               isReady={isReady}
               onTapChord={assignChord}
               onTapCountIn={assignCountIn}
+              onRenameChord={handleRenameChord}
+              onToggleChordString={handleToggleChordString}
             />
           </div>
 

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import type { ChordDictionary } from '../types'
 
@@ -10,6 +10,14 @@ interface Props {
   isReady: boolean
   onTapChord: (chord: string) => void
   onTapCountIn: () => void
+  // Renames a palette chord in place (same slot, same keyboard shortcut) and
+  // rewrites every timeline entry currently using it — e.g. fixing a typo'd
+  // quality or swapping in a different voicing without having to re-tap
+  // every occurrence already recorded.
+  onRenameChord: (oldChord: string, newChord: string) => void
+  // Toggles one string of a palette chord between played and muted — e.g.
+  // this song's G# should skip its G string while keeping the rest as-is.
+  onToggleChordString: (chord: string, stringIndex: number) => void
 }
 
 function getChordData(chordDict: ChordDictionary, chord: string) {
@@ -31,7 +39,32 @@ function getChordData(chordDict: ChordDictionary, chord: string) {
 // shortcuts stayed snappy (a raw window keydown listener, dispatched
 // outside React entirely) — see RecordingView's currentTimeRef for the
 // other half of this fix.
-export const ChordTapStrip = memo(function ChordTapStrip({ chords, chordDict, currentChord, locked, isReady, onTapChord, onTapCountIn }: Props) {
+export const ChordTapStrip = memo(function ChordTapStrip({ chords, chordDict, currentChord, locked, isReady, onTapChord, onTapCountIn, onRenameChord, onToggleChordString }: Props) {
+  // Index (not name) of the tile currently showing the rename input —
+  // chord names aren't unique enough to key off the string if the palette
+  // ever has a duplicate.
+  const [editingIdx, setEditingIdx] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  function startEdit(i: number, chord: string) {
+    if (locked) return
+    setEditingIdx(i)
+    setEditValue(chord)
+  }
+
+  function commitEdit() {
+    if (editingIdx === null) return
+    const oldChord = chords[editingIdx]
+    const newChord = editValue.trim()
+    setEditingIdx(null)
+    if (!oldChord || !newChord || newChord === oldChord) return
+    onRenameChord(oldChord, newChord)
+  }
+
+  function cancelEdit() {
+    setEditingIdx(null)
+  }
+
   return (
     <div className="chord-buttons">
       <button
@@ -43,16 +76,52 @@ export const ChordTapStrip = memo(function ChordTapStrip({ chords, chordDict, cu
         <span className="chord-tap-name">⏱ Count-in</span>
       </button>
       {chords.map((chord, i) => (
-        <button
-          key={chord}
-          className={`chord-tap-btn${currentChord === chord ? ' chord-tap-btn-current' : ''}`}
-          onClick={() => onTapChord(chord)}
-          disabled={!isReady || locked}
-        >
-          <span className="chord-tap-key">{i + 1}</span>
-          <span className="chord-tap-name">{chord}</span>
-          <ChordDiagram chord={chord} data={getChordData(chordDict, chord)} size={0.85} />
-        </button>
+        editingIdx === i ? (
+          <div key={i} className="chord-tap-tile">
+            <div className="chord-tap-btn chord-tap-btn-editing">
+              <span className="chord-tap-edit-hint">Click a string to mute it</span>
+              <ChordDiagram
+                chord={chord}
+                data={getChordData(chordDict, chord)}
+                size={0.85}
+                onToggleString={si => onToggleChordString(chord, si)}
+              />
+              <input
+                className="chord-tap-edit-input"
+                autoFocus
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitEdit()
+                  else if (e.key === 'Escape') cancelEdit()
+                }}
+              />
+              <div className="chord-tap-edit-actions">
+                <button className="btn-small" disabled={!editValue.trim()} onClick={commitEdit} title="Save name">✓</button>
+                <button className="btn-ghost" onClick={cancelEdit} title="Cancel">×</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div key={i} className="chord-tap-tile">
+            <button
+              className={`chord-tap-btn${currentChord === chord ? ' chord-tap-btn-current' : ''}`}
+              onClick={() => onTapChord(chord)}
+              disabled={!isReady || locked}
+            >
+              <span className="chord-tap-key">{i + 1}</span>
+              <span className="chord-tap-name">{chord}</span>
+              <ChordDiagram chord={chord} data={getChordData(chordDict, chord)} size={0.85} />
+            </button>
+            {!locked && (
+              <button
+                className="chord-tap-edit-btn"
+                onClick={e => { e.stopPropagation(); startEdit(i, chord) }}
+                title={`Replace ${chord} with a different chord`}
+              >✎</button>
+            )}
+          </div>
+        )
       ))}
     </div>
   )

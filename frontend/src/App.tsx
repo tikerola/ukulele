@@ -780,6 +780,18 @@ export default function App() {
     setIsLoading(false)
   }
 
+  // The global dictionary with this song's per-chord string-mute edits (see
+  // RecordingView's chordOverrides) layered on top. Only Playalong needs
+  // this merged version — Creator gets the raw chordDict prop and computes
+  // its own equivalent live (RecordingView's effectiveChordDict), since
+  // chordOverrides itself lives in Creator's own in-progress state until a
+  // save round-trips it back into creatorSnapshot here.
+  const effectiveChordDict = useMemo(() => {
+    const overrides = creatorSnapshot?.chordOverrides
+    if (!overrides || Object.keys(overrides).length === 0) return chordDict
+    return { ...chordDict, ...overrides }
+  }, [chordDict, creatorSnapshot?.chordOverrides])
+
   const deleteSavedSong = useCallback(async (vid: string) => {
     await fetch(`${API}/songs/${vid}`, { method: 'DELETE' }).catch(() => {})
     refreshSavedSongs()
@@ -846,7 +858,7 @@ export default function App() {
         timeline={timeline}
         sections={creatorSnapshot?.sections ?? []}
         lyrics={creatorSnapshot?.lyrics ?? ''}
-        chordDict={chordDict}
+        chordDict={effectiveChordDict}
         startOffset={creatorSnapshot?.startOffset}
         endOffset={creatorSnapshot?.endOffset}
         showNextChordPreview={creatorSnapshot?.showNextChordPreview ?? true}

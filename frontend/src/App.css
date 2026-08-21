@@ -1548,6 +1548,76 @@ kbd {
 
 .chord-tap-btn:disabled { opacity: 0.5; cursor: default; }
 
+.chord-tap-tile {
+  position: relative;
+  display: inline-flex;
+}
+
+.chord-tap-edit-btn {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.chord-tap-tile:hover .chord-tap-edit-btn {
+  opacity: 1;
+}
+
+.chord-tap-edit-btn:hover {
+  color: var(--primary);
+}
+
+.chord-tap-btn-editing {
+  cursor: default;
+  gap: 8px;
+}
+
+.chord-tap-btn-editing:hover {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.chord-tap-edit-hint {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.chord-tap-edit-input {
+  width: 72px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 4px;
+}
+
+.chord-tap-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.chord-string-hit {
+  cursor: pointer;
+}
+
+.chord-string-hit:hover {
+  fill: rgba(244, 230, 204, 0.12);
+}
+
 .chord-tap-btn-count-in {
   border-style: dashed;
   border-color: rgba(255, 215, 0, 0.5);
