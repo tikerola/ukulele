@@ -66,6 +66,12 @@ export interface CreatorSnapshot {
   // present. Scoped to this song rather than the dictionary itself, so
   // customizing one song's G# doesn't change every other song's G#.
   chordOverrides?: ChordDictionary
+  // Default beat count a chord entry falls back to when it has no `beats`
+  // of its own (see ChordEntry.beats) — undefined/absent means 4. Lets a
+  // whole song default to e.g. 3 for 3/4 time instead of every chord
+  // needing its `beats` set by hand. Per-song rather than global since
+  // different songs have different time signatures.
+  beatsPerMeasure?: number
 }
 
 export interface SavedSong {

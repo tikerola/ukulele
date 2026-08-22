@@ -1025,13 +1025,13 @@ textarea { resize: vertical; }
 .beat-dots {
   display: flex;
   justify-content: center;
-  gap: 7px;
-  margin-top: 7px;
+  gap: 10px;
+  margin-top: 9px;
 }
 
 .beat-dot {
-  width: 7px;
-  height: 7px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
 }

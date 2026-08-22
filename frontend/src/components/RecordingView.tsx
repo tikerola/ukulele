@@ -75,6 +75,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [locked, setLocked] = useState(initialSnapshot?.locked ?? !!initialSnapshot?.timeline.length)
   const [showTiedLyrics, setShowTiedLyrics] = useState(initialSnapshot?.showTiedLyrics ?? false)
+  const [beatsPerMeasure, setBeatsPerMeasure] = useState(initialSnapshot?.beatsPerMeasure ?? 4)
   // Per-song fingering tweaks (currently just string mutes), layered over
   // the (global, read-only here) chordDict prop — see effectiveChordDict
   // below for where the two get merged for display/playback.
@@ -215,11 +216,11 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
     const t = setTimeout(() => onSnapshotChange({
       timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
       showNextChordPreview: initialSnapshot?.showNextChordPreview,
-      showTiedLyrics, chordOverrides,
+      showTiedLyrics, chordOverrides, beatsPerMeasure,
     }), 800)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked, showTiedLyrics, chordOverrides])
+  }, [timeline, sections, referenceText, lyricsText, startOffset, endOffset, locked, showTiedLyrics, chordOverrides, beatsPerMeasure])
 
   // The dictionary actually used for lookups/display/playback — the global
   // chordDict prop with this song's per-chord string-mute edits laid over
@@ -464,7 +465,7 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
             onClick={() => onDone(timeline, {
               timeline, sections, reference: referenceText, lyrics: lyricsText, startOffset, endOffset, locked,
               showNextChordPreview: initialSnapshot?.showNextChordPreview,
-              showTiedLyrics, chordOverrides,
+              showTiedLyrics, chordOverrides, beatsPerMeasure,
             }, currentTimeRef.current)}
             disabled={timeline.length === 0}
             title={timeline.length === 0 ? 'Record at least one chord first' : 'Switch to Playalong'}
@@ -548,6 +549,8 @@ export function RecordingView({ videoId, chords, chordDict, initialSnapshot, ini
               onEndOffsetChange={setEndOffset}
               showTiedLyrics={showTiedLyrics}
               onShowTiedLyricsChange={setShowTiedLyrics}
+              beatsPerMeasure={beatsPerMeasure}
+              onBeatsPerMeasureChange={setBeatsPerMeasure}
             />
           ) : (
             <div className="timeline-loading">Waiting for video to load…</div>

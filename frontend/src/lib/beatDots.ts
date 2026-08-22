@@ -11,18 +11,19 @@ export type BeatDotState = 'lit' | 'empty'
 // represents. The run's anchor (its first entry) is always beat 0.
 //
 // The number of dots itself comes from the anchor's `beats` field (see
-// types/index.ts), defaulting to 4 — so a chord explicitly marked as a
-// 2-beat chord renders a 2-dot row instead of always assuming a 4-beat bar.
+// types/index.ts), falling back to `defaultBeats` (the song's
+// beatsPerMeasure, itself defaulting to 4) — so a chord explicitly marked as
+// a 2-beat chord renders a 2-dot row instead of always assuming a 4-beat bar.
 //
 // Entries saved before `beatSlot` existed fall back to a time-based beat
 // estimate: fill-created beats (unlike old manual glues) were always placed
 // at exact fractions of the gap to the next chord, so re-deriving the
 // nearest beat from their timestamp recovers the original skip pattern
 // without needing the song re-recorded.
-export function computeBeatDots(entries: ChordEntry[], group: number[]): BeatDotState[] {
-  if (group.length === 0) return ['empty', 'empty', 'empty', 'empty']
+export function computeBeatDots(entries: ChordEntry[], group: number[], defaultBeats = 4): BeatDotState[] {
+  if (group.length === 0) return Array.from({ length: defaultBeats }, () => 'empty')
 
-  const beats = Math.max(1, entries[group[0]].beats ?? 4)
+  const beats = Math.max(1, entries[group[0]].beats ?? defaultBeats)
   const dots: BeatDotState[] = Array.from({ length: beats }, () => 'empty')
 
   const start = entries[group[0]].time

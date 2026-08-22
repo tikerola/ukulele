@@ -26,6 +26,9 @@ interface Props {
   maxLyricsLines?: number
   chordZoom?: number
   lyricsZoom?: number
+  // Default beats-per-measure for chords with no `beats` of their own — see
+  // CreatorSnapshot.beatsPerMeasure in types/index.ts. Defaults to 4.
+  beatsPerMeasure?: number
 }
 
 export const BASE_CHORD_SIZE = 1.68
@@ -49,7 +52,7 @@ function distributeRows(total: number, maxPerRow: number): number[] {
   return Array.from({ length: rowCount }, (_, i) => base + (i < remainder ? 1 : 0))
 }
 
-export function SectionChordBoard({ section, entries, activeIdx, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, maxLyricsLines, chordZoom = 1, lyricsZoom = 1 }: Props) {
+export function SectionChordBoard({ section, entries, activeIdx, nextChord, activeChordEndTime, currentTime, chordDict, onPulse, showNextPreview = true, isLastChordActive, countInEntries, isFirstSection, lyrics, nextLyrics, hasLyrics, maxLyricsLines, chordZoom = 1, lyricsZoom = 1, beatsPerMeasure = 4 }: Props) {
   const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const lastPulseElRef = useRef<HTMLDivElement | null>(null)
@@ -150,7 +153,7 @@ export function SectionChordBoard({ section, entries, activeIdx, nextChord, acti
     rowChordSizes.push(rowChordSize)
     return rowIndices.map(indices => {
       const anchor = entries[indices[0]]
-      const dots = computeBeatDots(entries, indices)
+      const dots = computeBeatDots(entries, indices, beatsPerMeasure)
       return (
         <div
           key={indices[0]}

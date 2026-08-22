@@ -302,6 +302,7 @@ function PlayalongView({
   showNextChordPreview,
   onShowNextChordPreviewChange,
   showTiedLyrics,
+  beatsPerMeasure,
   initialSeekTime,
   onToCreator,
   onReset,
@@ -318,6 +319,9 @@ function PlayalongView({
   // Whether to show lyrics on a tied section's active row — authored in
   // Creator (Timeline's tie-group popover), not toggled here.
   showTiedLyrics: boolean
+  // Default beats-per-measure for chords with no `beats` of their own —
+  // authored in Creator (Timeline's toolbar), not toggled here.
+  beatsPerMeasure: number
   // Where the Creator's own timeline playhead sat when the user switched to
   // Playalong — carried over so playback picks up from the same spot
   // instead of resetting to the start. Mirrors initialSeekTime's Creator-
@@ -669,6 +673,7 @@ function PlayalongView({
                     maxLyricsLines={maxLyricsLines}
                     chordZoom={chordZoom}
                     lyricsZoom={lyricsZoom}
+                    beatsPerMeasure={beatsPerMeasure}
                   />
                 }
               />
@@ -692,6 +697,7 @@ function PlayalongView({
                 maxLyricsLines={maxLyricsLines}
                 chordZoom={chordZoom}
                 lyricsZoom={lyricsZoom}
+                beatsPerMeasure={beatsPerMeasure}
               />
             )
           ) : (
@@ -703,6 +709,7 @@ function PlayalongView({
               showNextPreview={showNextChordPreview}
               countInEntries={countInEntries}
               chordZoom={chordZoom}
+              beatsPerMeasure={beatsPerMeasure}
             />
           )}
         </div>
@@ -864,6 +871,7 @@ export default function App() {
         showNextChordPreview={creatorSnapshot?.showNextChordPreview ?? true}
         onShowNextChordPreviewChange={setShowNextChordPreview}
         showTiedLyrics={creatorSnapshot?.showTiedLyrics ?? false}
+        beatsPerMeasure={creatorSnapshot?.beatsPerMeasure ?? 4}
         initialSeekTime={playalongSeekTime}
         onToCreator={time => { setCreatorSeekTime(time); setAppState('creator') }}
         onReset={handleReset}

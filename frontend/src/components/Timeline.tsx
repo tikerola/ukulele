@@ -44,6 +44,11 @@ interface Props {
   // preference. One flag for the whole song, not per tie group.
   showTiedLyrics: boolean
   onShowTiedLyricsChange: (value: boolean) => void
+  // Default beat count a chord card falls back to when it has no `beats` of
+  // its own — see CreatorSnapshot.beatsPerMeasure in types/index.ts. Lets
+  // the whole song default to e.g. 3 for 3/4 time.
+  beatsPerMeasure: number
+  onBeatsPerMeasureChange: (value: number) => void
 }
 
 const MIN_PPS = 10
@@ -133,7 +138,7 @@ function FillBeatsChips({ fillBeats, fillSkip, onFillBeatsChange, onToggleBeat }
   )
 }
 
-export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, onPlay, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange, showTiedLyrics, onShowTiedLyricsChange }: Props) {
+export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelectChange, onChange, onSeek, onPlay, locked, sections, lyricsBySection, onSectionsChange, onSectionSplit, onSectionRename, onBeginEdit, canUndo, canRedo, onUndo, onRedo, startOffset, endOffset, onStartOffsetChange, onEndOffsetChange, showTiedLyrics, onShowTiedLyricsChange, beatsPerMeasure, onBeatsPerMeasureChange }: Props) {
   const [pps, setPps] = useState(DEFAULT_PPS)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   // Captured at the start of a marker drag: which section(s) currently treat
@@ -189,6 +194,11 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // in-range number — see that function for why it isn't deferred to
   // blur/Enter. Synced from the selection below.
   const [chordBeatsDraft, setChordBeatsDraft] = useState('')
+  // Same free-typed-draft treatment as chordBeatsDraft, for the "Set beats"
+  // control on a multi-chord range selection — reset to the song's default
+  // (beatsPerMeasure) each time a new range is selected, see the effect
+  // below, so it starts at a sensible value the user can then override.
+  const [batchBeatsDraft, setBatchBeatsDraft] = useState('')
 
   useEffect(() => {
     try { window.localStorage.setItem(FILL_BEATS_STORAGE_KEY, String(fillBeats)) } catch { /* storage unavailable */ }
@@ -222,9 +232,17 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // the input for the wrong chord.
   useEffect(() => {
     setFillSkip(new Set())
-    setChordBeatsDraft(selectedIdx !== null && timeline[selectedIdx] ? String(timeline[selectedIdx].beats ?? 4) : '')
+    setChordBeatsDraft(selectedIdx !== null && timeline[selectedIdx] ? String(timeline[selectedIdx].beats ?? beatsPerMeasure) : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx])
+
+  // Resets the batch "Set beats" draft to the song's default every time a
+  // new range gets selected, so it doesn't carry over a value typed for a
+  // previous selection.
+  useEffect(() => {
+    setBatchBeatsDraft(rangeSel && rangeSel.length > 0 ? String(beatsPerMeasure) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeSel])
 
   useLayoutEffect(() => {
     const trackEl = trackRef.current
@@ -704,7 +722,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     const parsed = parseInt(raw, 10)
     if (!Number.isFinite(parsed)) return
     const clamped = Math.max(1, Math.min(16, parsed))
-    if (clamped === (entry.beats ?? 4)) return
+    if (clamped === (entry.beats ?? beatsPerMeasure)) return
     onBeginEdit()
     commitTimeline(timeline.map((e, i) => i === idx ? { ...e, beats: clamped } : e))
   }
@@ -714,7 +732,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // field, or "0") left behind when focus moves away without it ever
   // having parsed to a valid value.
   function handleChordBeatsBlur(idx: number) {
-    setChordBeatsDraft(String(timeline[idx]?.beats ?? 4))
+    setChordBeatsDraft(String(timeline[idx]?.beats ?? beatsPerMeasure))
   }
 
   // A section's boundaries are just the times of its first/last chord — once
@@ -766,7 +784,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // involved.
   function fillBeatsBetween(start: ChordEntry, next: ChordEntry): ChordEntry[] {
     const step = (next.time - start.time) / fillBeats
-    const cardBeats = start.beats ?? 4
+    const cardBeats = start.beats ?? beatsPerMeasure
     const newEntries: ChordEntry[] = []
     for (let b = 1; b < fillBeats; b++) {
       if (fillSkip.has(b)) continue
@@ -890,6 +908,26 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     setRangeSel(null)
     setAnchorIdx(null)
     setSectionName('')
+  }
+
+  // Sets `beats` on every selected chord in one go — but only on each
+  // glued run's anchor entry, since `beats` is only ever meaningful there
+  // (see ChordEntry.beats in types/index.ts); a tied entry within range
+  // whose anchor sits outside it is left untouched, matching how that
+  // entry's card is actually driven by its (out-of-range) anchor anyway.
+  function applyBatchBeats(ranges: [number, number][]) {
+    if (locked || ranges.length === 0) return
+    const parsed = parseInt(batchBeatsDraft, 10)
+    if (!Number.isFinite(parsed)) return
+    const clamped = Math.max(1, Math.min(16, parsed))
+    const anchorIdxs = new Set(
+      buildChordGroups(timeline)
+        .map(g => g[0])
+        .filter(i => ranges.some(([lo, hi]) => i >= lo && i <= hi))
+    )
+    if (anchorIdxs.size === 0) return
+    onBeginEdit()
+    commitTimeline(timeline.map((e, i) => anchorIdxs.has(i) ? { ...e, beats: clamped } : e))
   }
 
   function handleClearAll() {
@@ -1060,6 +1098,24 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             <button className="btn-small" onClick={() => setPps(v => Math.min(MAX_PPS, v + 10))} title="Zoom in">+</button>
           </div>
           <div className="timeline-zoom">
+            <span className="timeline-popover-hint">Time sig</span>
+            <input
+              type="number"
+              min={1}
+              max={16}
+              className="fill-beats-input"
+              value={beatsPerMeasure}
+              disabled={locked}
+              onChange={e => {
+                const parsed = parseInt(e.target.value, 10)
+                if (!Number.isFinite(parsed)) return
+                onBeatsPerMeasureChange(Math.max(1, Math.min(16, parsed)))
+              }}
+              title="Default beats per measure for new chords in this song (e.g. 3 for 3/4 time) — a chord's own beats count, set when it's selected, always overrides this"
+            />
+            <span className="timeline-popover-hint">/4</span>
+          </div>
+          <div className="timeline-zoom">
             <button
               className={`btn-small${startOffset != null ? ' btn-small-active' : ''}`}
               onClick={() => setStartOffsetAt(currentTime)}
@@ -1195,7 +1251,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
             // here as beat numbers (1-4) instead of dots, so the tooltip
             // itself says which beats are actually included, e.g. "1,3,4"
             // makes it obvious beat 2 was skipped rather than just "× 3".
-            const beatNumbers = computeBeatDots(timeline, indices)
+            const beatNumbers = computeBeatDots(timeline, indices, beatsPerMeasure)
               .map((state, i) => (state === 'lit' ? i + 1 : null))
               .filter((n): n is number => n !== null)
               .join(',')
@@ -1250,6 +1306,29 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
                 ? ` (${formatTime(timeline[rangeSel[0][0]].time)}–${formatTime(timeline[rangeSel[0][1]].time)})`
                 : ` across ${rangeSel.length} gaps`}
             </span>
+            <div className="fill-beats-control">
+              <span className="timeline-popover-hint">Beats:</span>
+              <input
+                type="number"
+                min={1}
+                max={16}
+                className="fill-beats-input"
+                value={batchBeatsDraft}
+                onChange={e => setBatchBeatsDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') applyBatchBeats(rangeSel) }}
+                disabled={locked}
+                title="Beats each selected chord's card displays — its dots and progress-bar ticks"
+              />
+              <button
+                className="btn-small"
+                disabled={locked || !Number.isFinite(parseInt(batchBeatsDraft, 10))}
+                onClick={() => applyBatchBeats(rangeSel)}
+                title="Apply this beat count to every selected chord"
+              >
+                Set
+              </button>
+            </div>
+            <span className="popover-divider" />
             <div className="section-preset-buttons">
               {SECTION_PRESETS.map(name => (
                 <button key={name} className="btn-small" onClick={() => applySection(name)}>{name}</button>

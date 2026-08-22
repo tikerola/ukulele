@@ -14,12 +14,15 @@ interface Props {
   showNextPreview?: boolean
   countInEntries?: ChordEntry[]
   chordZoom?: number
+  // Default beats-per-measure for chords with no `beats` of their own — see
+  // CreatorSnapshot.beatsPerMeasure in types/index.ts. Defaults to 4.
+  beatsPerMeasure?: number
 }
 
 const BASE_CHORD_SIZE = 1.82
 const BASE_CHORD_ROW_GAP = 28
 
-export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true, countInEntries, chordZoom = 1 }: Props) {
+export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNextPreview = true, countInEntries, chordZoom = 1, beatsPerMeasure = 4 }: Props) {
   const CHORD_SIZE = BASE_CHORD_SIZE * chordZoom
   const { currentIdx, batchGroups, activeGroupIdxInBatch, activeChordEndTime, isLastInBatch, nextChord } = useChordSync(timeline, currentTime)
   // The very first batch is the one whose first group starts at raw entry 0
@@ -84,7 +87,7 @@ export function ChordOverlay({ timeline, currentTime, chordDict, onPulse, showNe
           )}
           {batchGroups.map((indices, i) => {
             const anchor = timeline[indices[0]]
-            const dots = computeBeatDots(timeline, indices)
+            const dots = computeBeatDots(timeline, indices, beatsPerMeasure)
             return (
               <div
                 key={indices[0]}

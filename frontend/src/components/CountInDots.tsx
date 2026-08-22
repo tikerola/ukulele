@@ -12,14 +12,14 @@ interface Props {
 // ChordDiagram draws its chord-name text at font-size 20 (SVG viewBox
 // units), baseline 5 units above the diagram's own bottom edge — see
 // ChordDiagram.tsx. Both scale by `size` exactly like the rest of the
-// diagram. Below the diagram sits the same 4px card padding-bottom, 7px
-// dot + 7px margin-top beat-dots row, and 4px + 6px progress-track every
+// diagram. Below the diagram sits the same 4px card padding-bottom, 13px
+// dot + 9px margin-top beat-dots row, and 4px + 6px progress-track every
 // real card has (App.css .chord-row-item/.beat-dots/.chord-progress-track)
 // — so this reproduces exactly where a real card's name sits relative to
 // its own beat-dots, just above the count-in dot instead.
 const NAME_FONT_SIZE = 20
 const NAME_BASELINE_FROM_DIAGRAM_BOTTOM = 5
-const CARD_BOTTOM_STACK = 4 + (7 + 7) + (4 + 6)
+const CARD_BOTTOM_STACK = 4 + (13 + 9) + (4 + 6)
 
 // A single invisible chord card (same spacer/track trick as before, for
 // vertical alignment with a real card's beat-dot) holding one dot and one
