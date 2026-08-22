@@ -177,9 +177,13 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   // click) — mirrors renamingIdx/renameValue's section-rename pattern.
   const [renamingTieGroup, setRenamingTieGroup] = useState<string | null>(null)
   const [tieRenameValue, setTieRenameValue] = useState('')
-  // Remembered across sessions (not just within one) — once you've settled
-  // on e.g. "8 beats, skip the offbeats" for how you tap in a song, that's
-  // almost always still what you want the next time you open Creator.
+  // Seeded from whatever was last used (remembered across sessions), but
+  // only as a fallback for before anything's selected — the effects below
+  // resync it to the relevant chord's own beat count (or the song's
+  // beatsPerMeasure default) every time the selected chord or section(s)
+  // change, so "Fill beats" defaults to matching dots/taps instead of
+  // silently reusing an unrelated remembered number (e.g. 4 left over from
+  // a different, 4/4 song).
   const [fillBeats, setFillBeats] = useState<number>(() => {
     const saved = parseInt(window.localStorage.getItem(FILL_BEATS_STORAGE_KEY) ?? '', 10)
     return Number.isFinite(saved) ? Math.max(2, Math.min(16, saved)) : 4
@@ -227,14 +231,30 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
 
   // A fresh selection starts with every beat enabled — skip choices from
   // filling a previous entry shouldn't silently carry over to this one.
-  // Also re-syncs the beats-count draft from the newly selected chord, so
-  // switching selection never leaves a stale, uncommitted edit sitting in
-  // the input for the wrong chord.
+  // Also re-syncs the beats-count draft, and Fill Beats' own subdivision
+  // count, from the newly selected chord — so "Fill beats" defaults to
+  // that chord's actual beat count (falling back to the song's
+  // beatsPerMeasure) instead of whatever was left over from a previous
+  // selection, and switching selection never leaves a stale, uncommitted
+  // edit sitting in the input for the wrong chord.
   useEffect(() => {
     setFillSkip(new Set())
     setChordBeatsDraft(selectedIdx !== null && timeline[selectedIdx] ? String(timeline[selectedIdx].beats ?? beatsPerMeasure) : '')
+    if (selectedIdx !== null && timeline[selectedIdx]) {
+      setFillBeats(Math.max(2, Math.min(16, timeline[selectedIdx].beats ?? beatsPerMeasure)))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx])
+
+  // Same resync for the section-wide "Fill every bare gap" control — there's
+  // no single chord to read a beat count from there, so it falls back
+  // straight to the song's default.
+  useEffect(() => {
+    if (selectedSectionIdxs.length > 0) {
+      setFillBeats(Math.max(2, Math.min(16, beatsPerMeasure)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSectionIdxs])
 
   // Resets the batch "Set beats" draft to the song's default every time a
   // new range gets selected, so it doesn't carry over a value typed for a
