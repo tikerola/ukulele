@@ -155,13 +155,20 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   const [sectionName, setSectionName] = useState('')
   const [selectedSectionIdxs, setSelectedSectionIdxs] = useState<number[]>([])
   const [sectionDrag, setSectionDrag] = useState<{
-    idx: number
+    idxs: number[]
     startClientX: number
     entryIndices: number[]
     originalTimes: number[]
-    originalSection: Section
+    originalSections: Section[]
   } | null>(null)
   const [trimDrag, setTrimDrag] = useState<'start' | 'end' | null>(null)
+  // Pointer capture (set in handleSectionPointerDown) retargets the
+  // trailing "click" event to the section band that was pressed, even when
+  // the pointer actually moved elsewhere to drag other selected sections
+  // along with it. Without this guard, that synthetic click would run
+  // handleSectionClick's non-shift branch and collapse a just-completed
+  // multi-section drag back down to a single selection.
+  const didDragSectionRef = useRef(false)
   // Index into `sections` of a section currently in "pick a split point"
   // mode — armed by the ✂ Split button, disarmed by clicking a valid chord
   // in that section (which performs the split), Esc, or any other
@@ -457,31 +464,48 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
     onSectionsChange(sections.map((s, si) => si === idx ? { ...s, name } : s))
   }
 
+  // Dragging a section that's already part of a multi-selection moves the
+  // whole selection together (same delta applied to every selected
+  // section's chords and start/end times); clicking any other section
+  // (or a lone selection) collapses to just that one, matching the old
+  // single-section behavior.
   function handleSectionPointerDown(e: React.PointerEvent, idx: number) {
     e.stopPropagation()
     if (locked || e.shiftKey) return
     if (splitPick !== null) { setSplitPick(null); return }
     setRenamingIdx(null)
     onBeginEdit()
-    const section = sections[idx]
-    const entryIndices = sectionEntryIndices(section)
+    const idxs = selectedSectionIdxs.length > 1 && selectedSectionIdxs.includes(idx)
+      ? selectedSectionIdxs
+      : [idx]
+    const originalSections = idxs.map(i => sections[i])
+    const entryIndices: number[] = []
+    const originalTimes: number[] = []
+    originalSections.forEach(section => {
+      sectionEntryIndices(section).forEach(i => {
+        entryIndices.push(i)
+        originalTimes.push(timeline[i].time)
+      })
+    })
+    didDragSectionRef.current = false
     e.currentTarget.setPointerCapture(e.pointerId)
     setSectionDrag({
-      idx,
+      idxs,
       startClientX: e.clientX,
       entryIndices,
-      originalTimes: entryIndices.map(i => timeline[i].time),
-      originalSection: section,
+      originalTimes,
+      originalSections,
     })
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
-    setSelectedSectionIdxs([idx])
+    setSelectedSectionIdxs(idxs)
   }
 
   function handleSectionPointerMove(e: React.PointerEvent) {
     if (!sectionDrag) return
-    const { entryIndices, originalTimes, originalSection } = sectionDrag
+    const { idxs, entryIndices, originalTimes, originalSections } = sectionDrag
+    if (Math.abs(e.clientX - sectionDrag.startClientX) > 2) didDragSectionRef.current = true
     let delta = (e.clientX - sectionDrag.startClientX) / pps
     originalTimes.forEach(t => {
       delta = Math.min(delta, duration - t)
@@ -492,9 +516,12 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
       return pos === -1 ? entry : { ...entry, time: originalTimes[pos] + delta }
     })
     onChange(next)
-    onSectionsChange(sections.map((s, si) => si === sectionDrag.idx
-      ? { ...s, startTime: originalSection.startTime + delta, endTime: originalSection.endTime + delta }
-      : s))
+    onSectionsChange(sections.map((s, si) => {
+      const pos = idxs.indexOf(si)
+      if (pos === -1) return s
+      const orig = originalSections[pos]
+      return { ...s, startTime: orig.startTime + delta, endTime: orig.endTime + delta }
+    }))
   }
 
   function handleSectionPointerUp() {
@@ -660,6 +687,7 @@ export function Timeline({ timeline, duration, currentTime, selectedIdx, onSelec
   function handleSectionClick(e: React.MouseEvent, idx: number) {
     e.stopPropagation()
     if (locked) return
+    if (didDragSectionRef.current) { didDragSectionRef.current = false; return }
     onSelectChange(null)
     setRangeSel(null)
     setAnchorIdx(null)
