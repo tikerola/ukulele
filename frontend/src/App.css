@@ -666,6 +666,24 @@ textarea { resize: vertical; }
   background: rgba(var(--primary-rgb), 0.06);
 }
 
+/* No lyrics anywhere in the song — every tied row already renders the same
+   chord size (see TiedSectionsBoard.tsx), so drop the cues that otherwise
+   mark one row as "current": matching padding keeps the gap between chord
+   lines constant regardless of which row is active, and matching background
+   (default and hover alike) removes the surface-vs-transparent contrast. */
+.tied-sections-board-flat .tied-section-row-preview {
+  padding: 16px 20px;
+  opacity: 1;
+  background: var(--surface);
+}
+
+/* Hover keeps its tint — that's interactive feedback while the pointer is
+   actually over the row, not a resting-state difference from the active
+   row, so it doesn't reintroduce the current/non-current cue. */
+.tied-sections-board-flat .tied-section-row-preview:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
 .tied-section-preview-chords {
   display: flex;
   flex-wrap: wrap;

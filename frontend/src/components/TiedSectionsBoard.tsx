@@ -36,9 +36,14 @@ const PREVIEW_CHORD_SCALE = 0.6
 
 export function TiedSectionsBoard({ members, activeSection, activeBoard, chordDict, chordZoom, onSeek, hasLyrics }: Props) {
   const previewSize = BASE_CHORD_SIZE * chordZoom * (hasLyrics ? PREVIEW_CHORD_SCALE : 1)
+  // With no lyrics anywhere, every row renders the same chord size — so they
+  // should also read as visually identical lines rather than one row
+  // standing out as "current": same padding (equal gaps line to line) and no
+  // background/opacity distinction for whichever section is active.
+  const boardClassName = hasLyrics ? 'tied-sections-board' : 'tied-sections-board tied-sections-board-flat'
 
   return (
-    <div className="tied-sections-board">
+    <div className={boardClassName}>
       {members.map(({ section, entries }) =>
         section === activeSection ? (
           <div className="tied-section-row tied-section-row-active" key={`${section.name}:${section.startTime}`}>
