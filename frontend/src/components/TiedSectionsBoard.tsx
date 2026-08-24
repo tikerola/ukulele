@@ -20,6 +20,12 @@ interface Props {
   chordDict: ChordDictionary
   chordZoom: number
   onSeek: (time: number) => void
+  // Whether the song has lyrics anywhere. Shrinking the non-active preview
+  // rows only makes sense as a trade-off against the lyrics carousel taking
+  // up space on the active row — with no lyrics in the song at all, there's
+  // nothing to trade off against, so every tied section reads better at the
+  // same chord size as the active one.
+  hasLyrics?: boolean
 }
 
 // How much smaller a tied section's preview row renders relative to the
@@ -28,8 +34,8 @@ interface Props {
 // still, since these rows carry no pulse/progress detail to fill the space.
 const PREVIEW_CHORD_SCALE = 0.6
 
-export function TiedSectionsBoard({ members, activeSection, activeBoard, chordDict, chordZoom, onSeek }: Props) {
-  const previewSize = BASE_CHORD_SIZE * chordZoom * PREVIEW_CHORD_SCALE
+export function TiedSectionsBoard({ members, activeSection, activeBoard, chordDict, chordZoom, onSeek, hasLyrics }: Props) {
+  const previewSize = BASE_CHORD_SIZE * chordZoom * (hasLyrics ? PREVIEW_CHORD_SCALE : 1)
 
   return (
     <div className="tied-sections-board">

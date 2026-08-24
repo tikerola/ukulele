@@ -653,6 +653,7 @@ function PlayalongView({
                 chordDict={chordDict}
                 chordZoom={chordZoom}
                 onSeek={seekTo}
+                hasLyrics={hasLyrics}
                 activeBoard={
                   <SectionChordBoard
                     section={section}
